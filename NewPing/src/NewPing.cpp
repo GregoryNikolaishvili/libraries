@@ -80,6 +80,15 @@ unsigned long NewPing::ping_cm(unsigned int max_cm_distance) {
 #endif
 }
 
+unsigned long NewPing::ping_mm(unsigned int max_cm_distance) {
+	unsigned long echoTime = NewPing::ping(max_cm_distance); // Calls the ping method and returns with the ping echo distance in uS.
+#if ROUNDING_ENABLED == false
+	return (echoTime / US_ROUNDTRIP_MM);              // Call the ping method and returns the distance in centimeters (no rounding).
+#else
+	return NewPingConvert(echoTime, US_ROUNDTRIP_MM); // Convert uS to centimeters.
+#endif
+}
+
 
 unsigned long NewPing::ping_in(unsigned int max_cm_distance) {
 	unsigned long echoTime = NewPing::ping(max_cm_distance); // Calls the ping method and returns with the ping echo distance in uS.
