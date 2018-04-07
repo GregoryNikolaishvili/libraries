@@ -47,7 +47,6 @@
 
 #define RTD_A 3.9083e-3
 #define RTD_B -5.775e-7
-#define RTD_C -4.18301e-12 
 
 #if (ARDUINO >= 100)
  #include "Arduino.h"
@@ -74,9 +73,9 @@ class Adafruit_MAX31865 {
 
   /////// GIA
 
-  void Adafruit_MAX31865::readRTD_step1(void);
-  void Adafruit_MAX31865::readRTD_step2(void);
-  uint16_t Adafruit_MAX31865::readRTD_step3(void);
+  void readRTD_step1(void);
+  void readRTD_step2(void);
+  uint16_t readRTD_step3(void);
 
   /////// END OF GIA
 
