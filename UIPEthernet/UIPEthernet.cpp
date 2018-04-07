@@ -17,19 +17,22 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
   */
 
-#include <Arduino.h>
-#include "UIPEthernet.h"
-#include "utility/Enc28J60Network.h"
-
-#if(defined UIPETHERNET_DEBUG || defined UIPETHERNET_DEBUG_CHKSUM)
-#include "HardwareSerial.h"
+#if defined(ARDUINO)
+  #include <Arduino.h>
 #endif
+#if defined(__MBED__)
+  #include <mbed.h>
+  #include "mbed/millis.h"
+#endif
+#include "UIPEthernet.h"
+#include "utility/logging.h"
+#include "utility/Enc28J60Network.h"
 
 #include "UIPUdp.h"
 
 extern "C"
 {
-#include "utility/uip-conf.h"
+#include "utility/uipopt.h"
 #include "utility/uip.h"
 #include "utility/uip_arp.h"
 #include "utility/uip_timer.h"
@@ -42,10 +45,13 @@ memhandle UIPEthernetClass::uip_packet(NOBLOCK);
 uint8_t UIPEthernetClass::uip_hdrlen(0);
 uint8_t UIPEthernetClass::packetstate(0);
 
-IPAddress UIPEthernetClass::_dnsServerAddress;
-DhcpClass* UIPEthernetClass::_dhcp(NULL);
-
 unsigned long UIPEthernetClass::periodic_timer;
+
+IPAddress UIPEthernetClass::_dnsServerAddress;
+#if UIP_UDP
+  DhcpClass* UIPEthernetClass::_dhcp(NULL);
+  static DhcpClass s_dhcp; // Placing this instance here is saving 40K to final *.bin (see bug below)
+#endif
 
 // Because uIP isn't encapsulated within a class we have to use global
 // variables, so we can only have one TCP/IP stack per program.
@@ -54,19 +60,16 @@ UIPEthernetClass::UIPEthernetClass()
 {
 }
 
-void
-UIPEthernetClass::update()
-{
-  Ethernet.tick();
-}
-
 #if UIP_UDP
 int
 UIPEthernetClass::begin(const uint8_t* mac)
 {
-  static DhcpClass s_dhcp;
+  #if ACTLOGLEVEL>=LOG_DEBUG_V3
+    LogObject.uart_send_strln(F("UIPEthernetClass::begin(const uint8_t* mac) DEBUG_V3:Function started"));
+  #endif
+  //static DhcpClass s_dhcp; // <-- this is a bug !
+  // I leave it there commented for history. It is bring all GCC "new" memory allocation code, making the *.bin almost 40K bigger. I've move it globally.
   _dhcp = &s_dhcp;
-
   // Initialise the basic info
   init(mac);
 
@@ -85,6 +88,9 @@ UIPEthernetClass::begin(const uint8_t* mac)
 void
 UIPEthernetClass::begin(const uint8_t* mac, IPAddress ip)
 {
+  #if ACTLOGLEVEL>=LOG_DEBUG_V3
+    LogObject.uart_send_strln(F("UIPEthernetClass::begin(const uint8_t* mac, IPAddress ip) DEBUG_V3:Function started"));
+  #endif
   IPAddress dns = ip;
   dns[3] = 1;
   begin(mac, ip, dns);
@@ -93,6 +99,9 @@ UIPEthernetClass::begin(const uint8_t* mac, IPAddress ip)
 void
 UIPEthernetClass::begin(const uint8_t* mac, IPAddress ip, IPAddress dns)
 {
+  #if ACTLOGLEVEL>=LOG_DEBUG_V3
+    LogObject.uart_send_strln(F("UIPEthernetClass::begin(const uint8_t* mac, IPAddress ip, IPAddress dns) DEBUG_V3:Function started"));
+  #endif
   IPAddress gateway = ip;
   gateway[3] = 1;
   begin(mac, ip, dns, gateway);
@@ -101,6 +110,9 @@ UIPEthernetClass::begin(const uint8_t* mac, IPAddress ip, IPAddress dns)
 void
 UIPEthernetClass::begin(const uint8_t* mac, IPAddress ip, IPAddress dns, IPAddress gateway)
 {
+  #if ACTLOGLEVEL>=LOG_DEBUG_V3
+    LogObject.uart_send_strln(F("UIPEthernetClass::begin(const uint8_t* mac, IPAddress ip, IPAddress dns, IPAddress gateway) DEBUG_V3:Function started"));
+  #endif
   IPAddress subnet(255, 255, 255, 0);
   begin(mac, ip, dns, gateway, subnet);
 }
@@ -108,11 +120,17 @@ UIPEthernetClass::begin(const uint8_t* mac, IPAddress ip, IPAddress dns, IPAddre
 void
 UIPEthernetClass::begin(const uint8_t* mac, IPAddress ip, IPAddress dns, IPAddress gateway, IPAddress subnet)
 {
+  #if ACTLOGLEVEL>=LOG_DEBUG_V3
+    LogObject.uart_send_strln(F("UIPEthernetClass::begin(const uint8_t* mac, IPAddress ip, IPAddress dns, IPAddress gateway, IPAddress subnet) DEBUG_V3:Function started"));
+  #endif
   init(mac);
   configure(ip,dns,gateway,subnet);
 }
 
 int UIPEthernetClass::maintain(){
+  #if ACTLOGLEVEL>=LOG_DEBUG_V3
+    LogObject.uart_send_strln(F("UIPEthernetClass::maintain() DEBUG_V3:Function started"));
+  #endif
   tick();
   int rc = DHCP_CHECK_NONE;
 #if UIP_UDP
@@ -139,6 +157,9 @@ int UIPEthernetClass::maintain(){
 
 IPAddress UIPEthernetClass::localIP()
 {
+  #if ACTLOGLEVEL>=LOG_DEBUG_V3
+    LogObject.uart_send_strln(F("UIPEthernetClass::localIP() DEBUG_V3:Function started"));
+  #endif
   IPAddress ret;
   uip_ipaddr_t a;
   uip_gethostaddr(a);
@@ -147,6 +168,9 @@ IPAddress UIPEthernetClass::localIP()
 
 IPAddress UIPEthernetClass::subnetMask()
 {
+  #if ACTLOGLEVEL>=LOG_DEBUG_V3
+    LogObject.uart_send_strln(F("UIPEthernetClass::subnetMask() DEBUG_V3:Function started"));
+  #endif
   IPAddress ret;
   uip_ipaddr_t a;
   uip_getnetmask(a);
@@ -155,6 +179,9 @@ IPAddress UIPEthernetClass::subnetMask()
 
 IPAddress UIPEthernetClass::gatewayIP()
 {
+  #if ACTLOGLEVEL>=LOG_DEBUG_V3
+    LogObject.uart_send_strln(F("UIPEthernetClass::gatewayIP() DEBUG_V3:Function started"));
+  #endif
   IPAddress ret;
   uip_ipaddr_t a;
   uip_getdraddr(a);
@@ -163,73 +190,89 @@ IPAddress UIPEthernetClass::gatewayIP()
 
 IPAddress UIPEthernetClass::dnsServerIP()
 {
+  #if ACTLOGLEVEL>=LOG_DEBUG_V3
+    LogObject.uart_send_strln(F("UIPEthernetClass::dnsServerIP() DEBUG_V3:Function started"));
+  #endif
   return _dnsServerAddress;
 }
 
 void
 UIPEthernetClass::tick()
 {
+#if ACTLOGLEVEL>=LOG_DEBUG_V3
+  LogObject.uart_send_strln(F("UIPEthernetClass::tick() DEBUG_V3:Function started"));
+#endif
+if (Enc28J60Network::geterevid()==0)
+   {
+   #if ACTLOGLEVEL>=LOG_ERR
+     LogObject.uart_send_strln(F("UIPEthernetClass::tick() ERROR:EREVID=0 -> Not found ENC28j60 device !! Function ended !!"));
+   #endif
+   return;
+   }
+#if defined(ESP8266)
+  wdt_reset();
+#endif
   if (in_packet == NOBLOCK)
     {
-      in_packet = Enc28J60Network::receivePacket();
-#ifdef UIPETHERNET_DEBUG
-      if (in_packet != NOBLOCK)
-        {
-          Serial.print(F("--------------\nreceivePacket: "));
-          Serial.println(in_packet);
-        }
-#endif
+    in_packet = Enc28J60Network::receivePacket();
+    #if ACTLOGLEVEL>=LOG_DEBUG
+    if (in_packet != NOBLOCK)
+      {
+      LogObject.uart_send_str(F("UIPEthernetClass::tick() DEBUG:receivePacket: "));
+      LogObject.uart_send_decln(in_packet);
+      }
+    #endif
     }
   if (in_packet != NOBLOCK)
     {
-      packetstate = UIPETHERNET_FREEPACKET;
-      uip_len = Enc28J60Network::blockSize(in_packet);
-      if (uip_len > 0)
+    packetstate = UIPETHERNET_FREEPACKET;
+    uip_len = Enc28J60Network::blockSize(in_packet);
+    if (uip_len > 0)
+      {
+      Enc28J60Network::readPacket(in_packet,0,(uint8_t*)uip_buf,UIP_BUFSIZE);
+      if (ETH_HDR ->type == HTONS(UIP_ETHTYPE_IP))
         {
-          Enc28J60Network::readPacket(in_packet,0,(uint8_t*)uip_buf,UIP_BUFSIZE);
-          if (ETH_HDR ->type == HTONS(UIP_ETHTYPE_IP))
-            {
-              uip_packet = in_packet; //required for upper_layer_checksum of in_packet!
-#ifdef UIPETHERNET_DEBUG
-              Serial.print(F("readPacket type IP, uip_len: "));
-              Serial.println(uip_len);
-#endif
-              uip_arp_ipin();
-              uip_input();
-              if (uip_len > 0)
-                {
-                  uip_arp_out();
-                  network_send();
-                }
-            }
-          else if (ETH_HDR ->type == HTONS(UIP_ETHTYPE_ARP))
-            {
-#ifdef UIPETHERNET_DEBUG
-              Serial.print(F("readPacket type ARP, uip_len: "));
-              Serial.println(uip_len);
-#endif
-              uip_arp_arpin();
-              if (uip_len > 0)
-                {
-                  network_send();
-                }
-            }
+        uip_packet = in_packet; //required for upper_layer_checksum of in_packet!
+        #if ACTLOGLEVEL>=LOG_DEBUG
+          LogObject.uart_send_str(F("UIPEthernetClass::tick() DEBUG:readPacket type IP, uip_len: "));
+          LogObject.uart_send_decln(uip_len);
+        #endif
+        uip_arp_ipin();
+        uip_input();
+        if (uip_len > 0)
+          {
+          uip_arp_out();
+          network_send();
+          }
         }
-      if (in_packet != NOBLOCK && (packetstate & UIPETHERNET_FREEPACKET))
-        {
-#ifdef UIPETHERNET_DEBUG
-          Serial.print(F("freeing packet: "));
-          Serial.println(in_packet);
-#endif
-          Enc28J60Network::freePacket();
-          in_packet = NOBLOCK;
-        }
+      else if (ETH_HDR ->type == HTONS(UIP_ETHTYPE_ARP))
+             {
+             #if ACTLOGLEVEL>=LOG_DEBUG
+               LogObject.uart_send_str(F("UIPEthernetClass::tick() DEBUG:readPacket type ARP, uip_len: "));
+               LogObject.uart_send_decln(uip_len);
+             #endif
+             uip_arp_arpin();
+             if (uip_len > 0)
+               {
+               network_send();
+               }
+             }
+      }
+    if (in_packet != NOBLOCK && (packetstate & UIPETHERNET_FREEPACKET))
+      {
+      #if ACTLOGLEVEL>=LOG_DEBUG
+        LogObject.uart_send_str(F("UIPEthernetClass::tick() DEBUG:freeing packet: "));
+        LogObject.uart_send_decln(in_packet);
+      #endif
+      Enc28J60Network::freePacket();
+      in_packet = NOBLOCK;
+      }
     }
 
   unsigned long now = millis();
 
 #if UIP_CLIENT_TIMER >= 0
-  boolean periodic = (long)( now - periodic_timer ) >= 0;
+  bool periodic = (long)( now - periodic_timer ) >= 0;
   for (int i = 0; i < UIP_CONNS; i++)
     {
 #else
@@ -240,20 +283,55 @@ UIPEthernetClass::tick()
       for (int i = 0; i < UIP_CONNS; i++)
         {
 #endif
+
       uip_conn = &uip_conns[i];
+
 #if UIP_CLIENT_TIMER >= 0
       if (periodic)
         {
 #endif
+
           uip_process(UIP_TIMER);
+
 #if UIP_CLIENT_TIMER >= 0
         }
       else
         {
-          if ((long)( now - ((uip_userdata_t*)uip_conn->appstate)->timer) >= 0)
-            uip_process(UIP_POLL_REQUEST);
-          else
-            continue;
+        if (uip_conn!=NULL)
+           {
+           if (((uip_userdata_t*)uip_conn->appstate)!=NULL)
+              {
+              if ((long)( now - ((uip_userdata_t*)uip_conn->appstate)->timer) >= 0)
+                 {
+                 uip_process(UIP_POLL_REQUEST);
+                 }
+              else
+                 {
+                 continue;
+                 }
+              }
+           else
+              {
+              #if ACTLOGLEVEL>=LOG_DEBUG_V3
+                 LogObject.uart_send_strln(F("UIPEthernetClass::tick() DEBUG_V3:((uip_userdata_t*)uip_conn->appstate) is NULL"));
+              #endif
+              if ((long)( now - ((uip_userdata_t*)uip_conn)->timer) >= 0)
+                 {
+                 uip_process(UIP_POLL_REQUEST);
+                 }
+              else
+                 {
+                 continue;
+                 }
+              }
+           }
+        else
+           {
+           #if ACTLOGLEVEL>=LOG_ERR
+             LogObject.uart_send_strln(F("UIPEthernetClass::tick() ERROR:uip_conn is NULL"));
+           #endif
+           continue;
+           }
         }
 #endif
         // If the above function invocation resulted in data that
@@ -286,45 +364,47 @@ UIPEthernetClass::tick()
     }
 }
 
-boolean UIPEthernetClass::network_send()
+bool UIPEthernetClass::network_send()
 {
+  #if ACTLOGLEVEL>=LOG_DEBUG_V3
+    LogObject.uart_send_strln(F("UIPEthernetClass::network_send() DEBUG_V3:Function started"));
+  #endif
   if (packetstate & UIPETHERNET_SENDPACKET)
     {
-#ifdef UIPETHERNET_DEBUG
-      Serial.print(F("Enc28J60Network_send uip_packet: "));
-      Serial.print(uip_packet);
-      Serial.print(F(", hdrlen: "));
-      Serial.println(uip_hdrlen);
+#if ACTLOGLEVEL>=LOG_DEBUG
+      LogObject.uart_send_str(F("UIPEthernetClass::network_send() DEBUG:uip_packet: "));
+      LogObject.uart_send_dec(uip_packet);
+      LogObject.uart_send_str(F(", hdrlen: "));
+      LogObject.uart_send_decln(uip_hdrlen);
 #endif
-      Enc28J60Network::writePacket(uip_packet,UIP_SENDBUFFER_OFFSET,uip_buf,uip_hdrlen);
+      Enc28J60Network::writePacket(uip_packet,0,uip_buf,uip_hdrlen);
       packetstate &= ~ UIPETHERNET_SENDPACKET;
-      if (Enc28J60Network::sendPacket(uip_packet))
-        {
-          Enc28J60Network::freeBlock(uip_packet);
-          uip_packet = NOBLOCK;
-          return true;
-        }
-      return false;
+      goto sendandfree;
     }
-  uip_packet = Enc28J60Network::allocBlock(uip_len + UIP_SENDBUFFER_OFFSET + UIP_SENDBUFFER_PADDING);
+  uip_packet = Enc28J60Network::allocBlock(uip_len);
   if (uip_packet != NOBLOCK)
     {
-#ifdef UIPETHERNET_DEBUG
-      Serial.print(F("Enc28J60Network_send uip_buf (uip_len): "));
-      Serial.print(uip_len);
-      Serial.print(F(", packet: "));
-      Serial.println(uip_packet);
+#if ACTLOGLEVEL>=LOG_DEBUG
+      LogObject.uart_send_str(F("UIPEthernetClass::network_send() DEBUG:uip_buf (uip_len): "));
+      LogObject.uart_send_dec(uip_len);
+      LogObject.uart_send_str(F(", packet: "));
+      LogObject.uart_send_decln(uip_packet);
 #endif
-      Enc28J60Network::writePacket(uip_packet,UIP_SENDBUFFER_OFFSET,uip_buf,uip_len);
-      bool register success = Enc28J60Network::sendPacket(uip_packet);
-      Enc28J60Network::freeBlock(uip_packet);
-      uip_packet = NOBLOCK;
-      return success;
+      Enc28J60Network::writePacket(uip_packet,0,uip_buf,uip_len);
+      goto sendandfree;
     }
   return false;
+sendandfree:
+  Enc28J60Network::sendPacket(uip_packet);
+  Enc28J60Network::freeBlock(uip_packet);
+  uip_packet = NOBLOCK;
+  return true;
 }
 
 void UIPEthernetClass::init(const uint8_t* mac) {
+  #if ACTLOGLEVEL>=LOG_DEBUG_V3
+    LogObject.uart_send_strln(F("UIPEthernetClass::init(const uint8_t* mac) DEBUG_V3:Function started"));
+  #endif
   periodic_timer = millis() + UIP_PERIODIC_TIMER;
 
   Enc28J60Network::init((uint8_t*)mac);
@@ -335,6 +415,9 @@ void UIPEthernetClass::init(const uint8_t* mac) {
 }
 
 void UIPEthernetClass::configure(IPAddress ip, IPAddress dns, IPAddress gateway, IPAddress subnet) {
+  #if ACTLOGLEVEL>=LOG_DEBUG_V3
+    LogObject.uart_send_strln(F("UIPEthernetClass::configure(IPAddress ip, IPAddress dns, IPAddress gateway, IPAddress subnet) DEBUG_V3:Function started"));
+  #endif
   uip_ipaddr_t ipaddr;
 
   uip_ip_addr(ipaddr, ip);
@@ -355,6 +438,9 @@ UIPEthernetClass UIPEthernet;
 uint16_t
 UIPEthernetClass::chksum(uint16_t sum, const uint8_t *data, uint16_t len)
 {
+  #if ACTLOGLEVEL>=LOG_DEBUG_V3
+    LogObject.uart_send_strln(F("UIPEthernetClass::chksum(uint16_t sum, const uint8_t *data, uint16_t len) DEBUG_V3:Function started"));
+  #endif
   uint16_t t;
   const uint8_t *dataptr;
   const uint8_t *last_byte;
@@ -388,6 +474,9 @@ UIPEthernetClass::chksum(uint16_t sum, const uint8_t *data, uint16_t len)
 uint16_t
 UIPEthernetClass::ipchksum(void)
 {
+  #if ACTLOGLEVEL>=LOG_DEBUG_V3
+    LogObject.uart_send_strln(F("UIPEthernetClass::ipchksum(void) DEBUG_V3:Function started"));
+  #endif
   uint16_t sum;
 
   sum = chksum(0, &uip_buf[UIP_LLH_LEN], UIP_IPH_LEN);
@@ -402,6 +491,13 @@ UIPEthernetClass::upper_layer_chksum(uint8_t proto)
 uip_tcpchksum(void)
 #endif
 {
+  #if ACTLOGLEVEL>=LOG_DEBUG_V3
+    #if UIP_UDP
+      LogObject.uart_send_strln(F("UIPEthernetClass::upper_layer_chksum(uint8_t proto) DEBUG_V3:Function started"));
+    #else
+      LogObject.uart_send_strln(F("uip_tcpchksum(void) INFO:Function started"));
+    #endif
+  #endif
   uint16_t upper_layer_len;
   uint16_t sum;
 
@@ -442,31 +538,39 @@ uip_tcpchksum(void)
   }
 #endif
   sum = UIPEthernetClass::chksum(sum, &uip_buf[UIP_IPH_LEN + UIP_LLH_LEN], upper_layer_memlen);
-#ifdef UIPETHERNET_DEBUG_CHKSUM
-  Serial.print(F("chksum uip_buf["));
-  Serial.print(UIP_IPH_LEN + UIP_LLH_LEN);
-  Serial.print(F("-"));
-  Serial.print(UIP_IPH_LEN + UIP_LLH_LEN + upper_layer_memlen);
-  Serial.print(F("]: "));
-  Serial.println(htons(sum),HEX);
+#if ACTLOGLEVEL>=LOG_DEBUG
+  #if UIP_UDP
+    LogObject.uart_send_str(F("UIPEthernetClass::upper_layer_chksum(uint8_t proto) DEBUG:uip_buf["));
+  #else
+    LogObject.uart_send_str(F("uip_tcpchksum(void) DEBUG:uip_buf["));
+  #endif
+  LogObject.uart_send_dec(UIP_IPH_LEN + UIP_LLH_LEN);
+  LogObject.uart_send_str(F("-"));
+  LogObject.uart_send_dec(UIP_IPH_LEN + UIP_LLH_LEN + upper_layer_memlen);
+  LogObject.uart_send_str(F("]: "));
+  LogObject.uart_send_hexln(htons(sum));
 #endif
   if (upper_layer_memlen < upper_layer_len)
     {
       sum = Enc28J60Network::chksum(
           sum,
           UIPEthernetClass::uip_packet,
-          (UIPEthernetClass::packetstate & UIPETHERNET_SENDPACKET ? UIP_IPH_LEN + UIP_LLH_LEN + UIP_SENDBUFFER_OFFSET : UIP_IPH_LEN + UIP_LLH_LEN) + upper_layer_memlen,
+          UIP_IPH_LEN + UIP_LLH_LEN + upper_layer_memlen,
           upper_layer_len - upper_layer_memlen
       );
-#ifdef UIPETHERNET_DEBUG_CHKSUM
-      Serial.print(F("chksum uip_packet("));
-      Serial.print(uip_packet);
-      Serial.print(F(")["));
-      Serial.print(UIP_IPH_LEN + UIP_LLH_LEN + upper_layer_memlen);
-      Serial.print(F("-"));
-      Serial.print(UIP_IPH_LEN + UIP_LLH_LEN + upper_layer_len);
-      Serial.print(F("]: "));
-      Serial.println(htons(sum),HEX);
+#if ACTLOGLEVEL>=LOG_DEBUG
+      #if UIP_UDP
+        LogObject.uart_send_str(F("UIPEthernetClass::upper_layer_chksum(uint8_t proto) DEBUG:uip_packet("));
+      #else
+        LogObject.uart_send_str(F("uip_tcpchksum(void) DEBUG:uip_packet("));
+      #endif
+      LogObject.uart_send_dec(UIPEthernetClass::uip_packet);
+      LogObject.uart_send_str(F(")["));
+      LogObject.uart_send_dec(UIP_IPH_LEN + UIP_LLH_LEN + upper_layer_memlen);
+      LogObject.uart_send_str(F("-"));
+      LogObject.uart_send_dec(UIP_IPH_LEN + UIP_LLH_LEN + upper_layer_len);
+      LogObject.uart_send_str(F("]: "));
+      LogObject.uart_send_hexln(htons(sum));
 #endif
     }
   return (sum == 0) ? 0xffff : htons(sum);

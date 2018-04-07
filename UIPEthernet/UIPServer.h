@@ -20,17 +20,37 @@
 #define UIPSERVER_H
 
 #include "ethernet_comp.h"
-#import "Server.h"
-#import "UIPClient.h"
+#if defined(ARDUINO)
+  #if defined(__RFduino__)
+    #include "Print.h"
+  #else
+    #include "Print.h"
+  #endif
+  #if defined(__STM32F3__) || defined(STM32F3) || defined(__RFduino__)
+    #include "mbed/Server.h"
+  #else
+    #include "Server.h"
+  #endif
+#endif
+#if defined(__MBED__)
+  #include "mbed/Print.h"
+  #include "mbed/Server.h"
+#endif
+#include "UIPClient.h"
 
-class UIPServer : public Server {
-
+#if defined(ARDUINO) && !defined(STM32F3) && !defined(__RFduino__)
+  class UIPServer : public Server {
+#endif
+#if defined(__MBED__) || defined(STM32F3) || defined(__RFduino__)
+  class UIPServer : public Print, public Server {
+#endif
 public:
   UIPServer(uint16_t);
   UIPClient available();
-  void begin();
-  size_t write(uint8_t);
-  size_t write(const uint8_t *buf, size_t size);
+  virtual void begin();
+  virtual size_t write(uint8_t);
+  virtual size_t write(const uint8_t *buf, size_t size);
+
   using Print::write;
 
 private:

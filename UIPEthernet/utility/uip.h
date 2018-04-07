@@ -1081,10 +1081,25 @@ struct uip_udp_conn *uip_udp_new(uip_ipaddr_t *ripaddr, u16_t rport);
  * network byte order, use the HTONS() macro instead.
  */
 #ifndef htons
-u16_t htons(u16_t val);
+   u16_t htons(u16_t val);
 #endif /* htons */
 #ifndef ntohs
-#define ntohs htons
+   #define ntohs htons
+#endif
+
+#ifndef htonl
+#   if UIP_BYTE_ORDER == UIP_BIG_ENDIAN
+#      define htonl(n) (n)
+#   else /* UIP_BYTE_ORDER == UIP_BIG_ENDIAN */
+#   define htonl(x) ( ((x)<<24 & 0xFF000000UL) | \
+                   ((x)<< 8 & 0x00FF0000UL) | \
+                   ((x)>> 8 & 0x0000FF00UL) | \
+                   ((x)>>24 & 0x000000FFUL) )
+#   endif /* UIP_BYTE_ORDER == UIP_BIG_ENDIAN */
+#endif /* htonl */
+
+#ifndef ntohl
+   #define ntohl(x) htonl(x) 
 #endif
 
 /** @} */

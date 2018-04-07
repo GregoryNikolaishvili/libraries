@@ -21,12 +21,23 @@
 #define UIPCLIENT_H
 
 #include "ethernet_comp.h"
-#include "Print.h"
-#import "Client.h"
-#import "utility/mempool.h"
+#if defined(ARDUINO)
+  #include "Print.h"
+  #if defined(__STM32F3__) || defined(STM32F3) || defined(__RFduino__)
+    #include "mbed/Client.h"
+  #else
+    #include "Client.h"
+  #endif
+#endif
+#if defined(__MBED__)
+  #include "mbed/Print.h"
+  #include "mbed/Client.h"
+#endif
+#include "utility/mempool.h"
+#include "utility/logging.h"
 
 extern "C" {
-  #import "utility/uip.h"
+  #include "utility/uip.h"
 }
 
 #define UIP_SOCKET_DATALEN UIP_TCP_MSS
@@ -53,37 +64,36 @@ typedef struct {
 typedef struct {
   uint8_t state;
   memhandle packets_in[UIP_SOCKET_NUMPACKETS];
-  memhandle packets_out[UIP_SOCKET_NUMPACKETS+1];
+  memhandle packets_out[UIP_SOCKET_NUMPACKETS];
   memaddress out_pos;
 #if UIP_CLIENT_TIMER >= 0
   unsigned long timer;
 #endif
-  bool windowOpened;
-  uint32_t restartTime;
-  uint32_t restartInterval;
-  uint16_t dataCnt;
 } uip_userdata_t;
 
-class UIPClient : public Client {
-
+#if defined(ARDUINO) && !defined(STM32F3) && !defined(__RFduino__)
+  class UIPClient : public Client {
+#endif
+#if defined(__MBED__) || defined(STM32F3) || defined(__RFduino__)
+  class UIPClient : public Print, public Client {
+#endif
 public:
   UIPClient();
-  int connect(IPAddress ip, uint16_t port);
-  int connect(const char *host, uint16_t port);
-  int read(uint8_t *buf, size_t size);
-  void stop();
-  uint8_t connected();
-  operator bool();
+  virtual int connect(IPAddress ip, uint16_t port);
+  virtual int connect(const char *host, uint16_t port);
+  virtual int read(uint8_t *buf, size_t size);
+  virtual void stop();
+  virtual uint8_t connected();
+  virtual operator bool();
   virtual bool operator==(const EthernetClient&);
   virtual bool operator!=(const EthernetClient& rhs) { return !this->operator==(rhs); };
 
-  size_t write(uint8_t);
-  size_t write(const uint8_t *buf, size_t size);
-  int available();
-  int waitAvailable(uint32_t timeout=500);
-  int read();
-  int peek();
-  void flush();
+  virtual size_t write(uint8_t);
+  virtual size_t write(const uint8_t *buf, size_t size);
+  virtual int available();
+  virtual int read();
+  virtual int peek();
+  virtual void flush();
 
   using Print::write;
 
@@ -96,15 +106,15 @@ private:
   static uip_userdata_t all_data[UIP_CONNS];
   static uip_userdata_t* _allocateData();
 
-  static size_t _write(uip_userdata_t *,const uint8_t *buf, size_t size);
+  static uint16_t _write(uip_userdata_t *,const uint8_t *buf, size_t size);
   static int _available(uip_userdata_t *);
 
   static uint8_t _currentBlock(memhandle* blocks);
   static void _eatBlock(memhandle* blocks);
   static void _flushBlocks(memhandle* blocks);
 
-#ifdef UIPETHERNET_DEBUG_CLIENT
-  static void _dumpAllData();
+#if ACTLOGLEVEL>=LOG_DEBUG_V2
+  static void _dumpAllData(void);
 #endif
 
   friend class UIPEthernetClass;

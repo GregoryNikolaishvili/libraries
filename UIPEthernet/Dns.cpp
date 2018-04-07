@@ -2,13 +2,27 @@
 // (c) Copyright 2009-2010 MCQN Ltd.
 // Released under Apache License, version 2.0
 
-#include "Udp.h"
-#include "utility/util.h"
-
+#include "utility/uipopt.h"
+#if UIP_UDP
 #include "Dns.h"
 #include <string.h>
 //#include <stdlib.h>
-#include "Arduino.h"
+#if defined(ARDUINO)
+  #include "Arduino.h"
+  #if defined(__STM32F3__) || defined(STM32F3)
+    #include "mbed/Udp.h"
+  #else
+    #include "Udp.h"
+  #endif
+#endif
+#if defined(__MBED__)
+  #include <mbed.h>
+  #include "mbed/Udp.h"
+  #include "mbed/millis.h"
+  #define delay(x) wait_ms(x)
+#endif
+#include "utility/logging.h"
+#include "utility/uip.h"
 
 
 #define SOCKET_NONE	255
@@ -58,8 +72,7 @@ int DNSClient::inet_aton(const char* aIPAddrString, IPAddress& aResult)
 {
     // See if we've been given a valid IP address
     const char* p =aIPAddrString;
-    while (*p &&
-           ( (*p == '.') || (*p >= '0') || (*p <= '9') ))
+    while (*p && ( (*p == '.') || ((*p >= '0') && (*p <= '9')) ))
     {
         p++;
     }
@@ -82,7 +95,7 @@ int DNSClient::inet_aton(const char* aIPAddrString, IPAddress& aResult)
                 }
                 else
                 {
-                    aResult[segment] = (byte)segmentValue;
+                    aResult[segment] = (uint8_t)segmentValue;
                     segment++;
                     segmentValue = 0;
                 }
@@ -104,7 +117,7 @@ int DNSClient::inet_aton(const char* aIPAddrString, IPAddress& aResult)
         }
         else
         {
-            aResult[segment] = (byte)segmentValue;
+            aResult[segment] = (uint8_t)segmentValue;
             return 1;
         }
     }
@@ -251,7 +264,7 @@ uint16_t DNSClient::BuildRequest(const char* aName)
 }
 
 
-uint16_t DNSClient::ProcessResponse(uint16_t aTimeout, IPAddress& aAddress)
+int16_t DNSClient::ProcessResponse(uint16_t aTimeout, IPAddress& aAddress)
 {
     uint32_t startTime = millis();
 
@@ -279,7 +292,7 @@ uint16_t DNSClient::ProcessResponse(uint16_t aTimeout, IPAddress& aAddress)
     {
         return TRUNCATED;
     }
-    iUdp.read(header, DNS_HEADER_SIZE);
+    iUdp.read((char*)header, DNS_HEADER_SIZE);
 
     uint16_t header_flags = htons(*((uint16_t*)&header[2]));
     // Check that it's a response to this request
@@ -315,7 +328,7 @@ uint16_t DNSClient::ProcessResponse(uint16_t aTimeout, IPAddress& aAddress)
         uint8_t len;
         do
         {
-            iUdp.read(&len, sizeof(len));
+            iUdp.read((char*)&len, sizeof(len));
             if (len > 0)
             {
                 // Don't need to actually read the data out for the string, just
@@ -345,7 +358,7 @@ uint16_t DNSClient::ProcessResponse(uint16_t aTimeout, IPAddress& aAddress)
         uint8_t len;
         do
         {
-            iUdp.read(&len, sizeof(len));
+            iUdp.read((char*)&len, sizeof(len));
             if ((len & LABEL_COMPRESSION_MASK) == 0)
             {
                 // It's just a normal label
@@ -378,8 +391,8 @@ uint16_t DNSClient::ProcessResponse(uint16_t aTimeout, IPAddress& aAddress)
         // Check the type and class
         uint16_t answerType;
         uint16_t answerClass;
-        iUdp.read((uint8_t*)&answerType, sizeof(answerType));
-        iUdp.read((uint8_t*)&answerClass, sizeof(answerClass));
+        iUdp.read((char*)&answerType, sizeof(answerType));
+        iUdp.read((char*)&answerClass, sizeof(answerClass));
 
         // Ignore the Time-To-Live as we don't do any caching
         for (int i =0; i < TTL_SIZE; i++)
@@ -389,7 +402,7 @@ uint16_t DNSClient::ProcessResponse(uint16_t aTimeout, IPAddress& aAddress)
 
         // And read out the length of this answer
         // Don't need header_flags anymore, so we can reuse it here
-        iUdp.read((uint8_t*)&header_flags, sizeof(header_flags));
+        iUdp.read((char*)&header_flags, sizeof(header_flags));
 
         if ( (htons(answerType) == TYPE_A) && (htons(answerClass) == CLASS_IN) )
         {
@@ -400,7 +413,7 @@ uint16_t DNSClient::ProcessResponse(uint16_t aTimeout, IPAddress& aAddress)
                 iUdp.flush();
                 return -9;//INVALID_RESPONSE;
             }
-            iUdp.read(aAddress.raw_address(), 4);
+            iUdp.read((char*)aAddress.raw_address(), 4);
             return SUCCESS;
         }
         else
@@ -419,4 +432,5 @@ uint16_t DNSClient::ProcessResponse(uint16_t aTimeout, IPAddress& aAddress)
     // If we get here then we haven't found an answer
     return -10;//INVALID_RESPONSE;
 }
+#endif
 

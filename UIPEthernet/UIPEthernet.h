@@ -20,19 +20,26 @@
 #ifndef UIPETHERNET_H
 #define UIPETHERNET_H
 
-//#define UIPETHERNET_DEBUG
-//#define UIPETHERNET_DEBUG_CHKSUM
-//#define UIPETHERNET_DEBUG_UDP
-//#define UIPETHERNET_DEBUG_CLIENT
-
 #include "ethernet_comp.h"
-#include <Arduino.h>
-#include "Dhcp.h"
-#include "IPAddress.h"
+#if defined(__MBED__)
+  #include <mbed.h>
+#endif
+#if defined(ARDUINO)
+  #include <Arduino.h>
+  #if defined(__STM32F3__) || defined(STM32F3) || defined(__RFduino__)
+    #include "mbed/IPAddress.h"
+  #else
+    #include "IPAddress.h"
+  #endif
+#endif
 #include "utility/Enc28J60Network.h"
+#include "utility/uipopt.h"
+#include "Dhcp.h"
+#if UIP_UDP
+  #include "UIPUdp.h"
+#endif
 #include "UIPClient.h"
 #include "UIPServer.h"
-#include "UIPUdp.h"
 
 extern "C"
 {
@@ -42,6 +49,7 @@ extern "C"
 
 #define UIPETHERNET_FREEPACKET 1
 #define UIPETHERNET_SENDPACKET 2
+#define UIPETHERNET_BUFFERREAD 4
 
 #define uip_ip_addr(addr, ip) do { \
                      ((u16_t *)(addr))[0] = HTONS(((ip[0]) << 8) | (ip[1])); \
@@ -79,8 +87,6 @@ public:
   IPAddress subnetMask();
   IPAddress gatewayIP();
   IPAddress dnsServerIP();
-  
-  void update();
 
 private:
   static memhandle in_packet;
@@ -89,8 +95,9 @@ private:
   static uint8_t packetstate;
   
   static IPAddress _dnsServerAddress;
-  static DhcpClass* _dhcp;
-
+  #if UIP_UDP
+    static DhcpClass* _dhcp;
+  #endif
   static unsigned long periodic_timer;
 
   static void init(const uint8_t* mac);
@@ -98,7 +105,7 @@ private:
 
   static void tick();
 
-  static boolean network_send();
+  static bool network_send();
 
   friend class UIPServer;
 

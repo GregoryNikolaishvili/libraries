@@ -21,7 +21,15 @@
 #ifndef clock_h_
 #define clock_h_
 
+#ifdef __cplusplus
+ extern "C" {
+#endif
+
 typedef unsigned long clock_time_t;
 #define CLOCK_CONF_SECOND 1000
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -18,11 +18,18 @@
  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#include <Arduino.h>
+#if defined(ARDUINO)
+  #include <Arduino.h>
+#endif
+#if defined(__MBED__)
+  #include "mbed/millis.h"
+#endif
 #include "clock-arch.h"
 
+extern "C" {
 clock_time_t
 clock_time(void)
 {
   return (clock_time_t) millis();
+}
 }

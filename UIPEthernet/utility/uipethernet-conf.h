@@ -2,7 +2,7 @@
 #define UIPETHERNET_CONF_H
 
 /* for TCP */
-#define UIP_SOCKET_NUMPACKETS    4
+#define UIP_SOCKET_NUMPACKETS    5
 #define UIP_CONF_MAX_CONNECTIONS 4
 
 /* for UDP
@@ -17,12 +17,10 @@
 
 /* timeout after which UIPClient::connect gives up. The timeout is specified in seconds.
  * if set to a number <= 0 connect will timeout when uIP does (which might be longer than you expect...) */
-#define UIP_CONNECT_TIMEOUT      3
-//GIA
-//#define UIP_CONNECT_TIMEOUT      -1
+#define UIP_CONNECT_TIMEOUT      -1
 
 /* periodic timer for uip (in ms) */
-#define UIP_PERIODIC_TIMER       100
+#define UIP_PERIODIC_TIMER       250
 
 /* timer to poll client for data after last write (in ms)
  * set to -1 to disable fast polling and rely on periodic only (saves 100 bytes flash) */
