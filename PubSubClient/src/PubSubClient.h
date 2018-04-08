@@ -23,7 +23,7 @@
 
 // MQTT_MAX_PACKET_SIZE : Maximum packet size
 #ifndef MQTT_MAX_PACKET_SIZE
-#define MQTT_MAX_PACKET_SIZE 256
+#define MQTT_MAX_PACKET_SIZE 256 // mofified by GIA from 128 to 256
 #endif
 
 // MQTT_KEEPALIVE : keepAlive interval in Seconds
@@ -33,7 +33,7 @@
 
 // MQTT_SOCKET_TIMEOUT: socket timeout interval in Seconds
 #ifndef MQTT_SOCKET_TIMEOUT
-#define MQTT_SOCKET_TIMEOUT 5
+#define MQTT_SOCKET_TIMEOUT 5 // mofified by GIA from 15 to 5
 #endif
 
 // MQTT_MAX_TRANSFER_SIZE : limit how much data is passed to the network client

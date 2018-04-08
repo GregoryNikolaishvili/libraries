@@ -2,7 +2,7 @@
 #include "utility/socket.h"
 
 extern "C" {
-#include "string.h"
+  #include "string.h"
 }
 
 #include "Arduino.h"
@@ -13,7 +13,6 @@ extern "C" {
 #include "Dns.h"
 
 uint16_t EthernetClient::_srcport = 49152;      //Use IANA recommended ephemeral port range 49152-65535
-uint16_t EthernetClient::_timeout = 1000;      //default timeout
 
 EthernetClient::EthernetClient() : _sock(MAX_SOCK_NUM) {
 }
@@ -60,10 +59,9 @@ int EthernetClient::connect(IPAddress ip, uint16_t port) {
     return 0;
   }
 
-  unsigned long start = millis();
   while (status() != SnSR::ESTABLISHED) {
     delay(1);
-    if (status() == SnSR::CLOSED || millis() - start > _timeout) {
+    if (status() == SnSR::CLOSED) {
       _sock = MAX_SOCK_NUM;
       return 0;
     }
@@ -126,27 +124,25 @@ void EthernetClient::flush() {
 }
 
 void EthernetClient::stop() {
-  if (_sock == MAX_SOCK_NUM) {
+  if (_sock == MAX_SOCK_NUM)
     return;
-  }
 
   // attempt to close the connection gracefully (send a FIN to other side)
   disconnect(_sock);
   unsigned long start = millis();
 
-  // wait until the connection closes or timeout interval passes
+  // wait up to a second for the connection to close
   uint8_t s;
   do {
     s = status();
     if (s == SnSR::CLOSED)
       break; // exit the loop
     delay(1);
-  } while (millis() - start < _timeout);
+  } while (millis() - start < 1000);
 
   // if it hasn't closed, close it forcefully
-  if (s != SnSR::CLOSED) {
+  if (s != SnSR::CLOSED)
     close(_sock);
-  }
 
   EthernetClass::_server_port[_sock] = 0;
   _sock = MAX_SOCK_NUM;
@@ -157,7 +153,7 @@ uint8_t EthernetClient::connected() {
 
   uint8_t s = status();
   return !(s == SnSR::LISTEN || s == SnSR::CLOSED || s == SnSR::FIN_WAIT ||
-           (s == SnSR::CLOSE_WAIT && !available()));
+    (s == SnSR::CLOSE_WAIT && !available()));
 }
 
 uint8_t EthernetClient::status() {
@@ -176,29 +172,6 @@ bool EthernetClient::operator==(const EthernetClient& rhs) {
   return _sock == rhs._sock && _sock != MAX_SOCK_NUM && rhs._sock != MAX_SOCK_NUM;
 }
 
-// from: https://github.com/ntruchsess/Arduino-1/commit/937bce1a0bb2567f6d03b15df79525569377dabd
-uint16_t EthernetClient::localPort() {
-  if (_sock == MAX_SOCK_NUM) {
-    return 0;
-  }
-  return W5100.readSnPORT(_sock);
-}
-
-// returns the remote IP address: http://forum.arduino.cc/index.php?topic=82416.0
-IPAddress EthernetClient::remoteIP() {
-  byte remoteIParray[4];
-  W5100.readSnDIPR(_sock, remoteIParray);
-  return IPAddress(remoteIParray);
-}
-
-// from: https://github.com/ntruchsess/Arduino-1/commit/ca37de4ba4ecbdb941f14ac1fe7dd40f3008af75
-uint16_t EthernetClient::remotePort() {
-  if (_sock == MAX_SOCK_NUM) {
-    return 0;
-  }
-  return W5100.readSnDPORT(_sock);
-}
-
-void EthernetClient::setClientTimeout(uint16_t timeout) {
-  _timeout = timeout;
+uint8_t EthernetClient::getSocketNumber() {
+  return _sock;
 }

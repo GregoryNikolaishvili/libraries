@@ -1,3 +1,9 @@
+//
+// This sketch does not use the ALARM registers and uses those 2 bytes as a counter
+// these 2 bytes can be used for other purposes as well e.g. last temperature or
+// a specific ID.
+// 
+
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
@@ -10,6 +16,8 @@ OneWire oneWire(ONE_WIRE_BUS);
 // Pass our oneWire reference to Dallas Temperature. 
 DallasTemperature sensors(&oneWire);
 
+int count = 0;
+
 void setup(void)
 {
   // start serial port
@@ -18,6 +26,7 @@ void setup(void)
 
   // Start up the library
   sensors.begin();
+  
 }
 
 void loop(void)
@@ -30,4 +39,9 @@ void loop(void)
   
   Serial.print("Temperature for the device 1 (index 0) is: ");
   Serial.println(sensors.getTempCByIndex(0));  
+  
+  count++;
+  sensors.setUserDataByIndex(0, count);
+  int x = sensors.getUserDataByIndex(0);
+  Serial.println(count);
 }
