@@ -33,7 +33,7 @@ typedef AlarmID_t AlarmId;  // Arduino friendly name
 #define dtINVALID_TIME     0L
 
 class AlarmClass;  // forward reference
-typedef void(*OnTick_t)(int tag);  // alarm callback function typedef 
+typedef void(*OnTick_t)(int tag1, int tag2);  // alarm callback function typedef 
 
 // class defining an alarm instance, only used by dtAlarmsClass
 class AlarmClass
@@ -48,7 +48,8 @@ public:
 	time_t nextTrigger;
 	AlarmMode_t Mode;
 	const char* eventName;
-	int tag;
+	int tag1;
+	int tag2;
 };
 
 // class containing the collection of alarms
@@ -59,27 +60,27 @@ private:
 	void serviceAlarms();
 	uint8_t isServicing;
 	uint8_t servicedAlarmId; // the alarm currently being serviced
-	AlarmID_t create(time_t value, OnTick_t onTickHandler, uint8_t isOneShot, dtAlarmPeriod_t alarmType, uint8_t isEnabled, const char* eventName, int tag);
+	AlarmID_t create(time_t value, OnTick_t onTickHandler, uint8_t isOneShot, dtAlarmPeriod_t alarmType, uint8_t isEnabled, const char* eventName, int tag1 = 0, int tag2 = 0);
 
 public:
 	TimeAlarmsClass();
 	// functions to create alarms and timers
 
-	AlarmID_t triggerOnce(time_t value, OnTick_t onTickHandler, const char* eventName, int tag);   // trigger once at the given time_t
+	AlarmID_t triggerOnce(time_t value, OnTick_t onTickHandler, const char* eventName, int tag1 = 0, int tag2 = 0);   // trigger once at the given time_t
 
-	AlarmID_t alarmRepeat(time_t value, OnTick_t onTickHandler, const char* eventName, int tag);                    // trigger daily at given time of day
-	AlarmID_t alarmRepeat(const int H, const int M, const int S, OnTick_t onTickHandler, const char* eventName, int tag); // as above, with hms arguments
-	AlarmID_t alarmRepeat(const timeDayOfWeek_t DOW, const int H, const int M, const int S, OnTick_t onTickHandler, const char* eventName, int tag); // as above, with day of week 
+	AlarmID_t alarmRepeat(time_t value, OnTick_t onTickHandler, const char* eventName, int tag1 = 0, int tag2 = 0);                    // trigger daily at given time of day
+	AlarmID_t alarmRepeat(const int H, const int M, const int S, OnTick_t onTickHandler, const char* eventName, int tag1 = 0, int tag2 = 0); // as above, with hms arguments
+	AlarmID_t alarmRepeat(const timeDayOfWeek_t DOW, const int H, const int M, const int S, OnTick_t onTickHandler, const char* eventName, int tag1 = 0, int tag2 = 0); // as above, with day of week 
 
-	AlarmID_t alarmOnce(time_t value, OnTick_t onTickHandler, const char* eventName, int tag);                     // trigger once at given time of day
-	AlarmID_t alarmOnce(const int H, const int M, const int S, OnTick_t onTickHandler, const char* eventName, int tag);  // as above, with hms arguments
-	AlarmID_t alarmOnce(const timeDayOfWeek_t DOW, const int H, const int M, const int S, OnTick_t onTickHandler, const char* eventName, int tag); // as above, with day of week 
+	AlarmID_t alarmOnce(time_t value, OnTick_t onTickHandler, const char* eventName, int tag1 = 0, int tag2 = 0);                     // trigger once at given time of day
+	AlarmID_t alarmOnce(const int H, const int M, const int S, OnTick_t onTickHandler, const char* eventName, int tag1 = 0, int tag2 = 0);  // as above, with hms arguments
+	AlarmID_t alarmOnce(const timeDayOfWeek_t DOW, const int H, const int M, const int S, OnTick_t onTickHandler, const char* eventName, int tag1 = 0, int tag2 = 0); // as above, with day of week 
 
-	AlarmID_t timerOnce(time_t value, OnTick_t onTickHandler, const char* eventName, int tag);   // trigger once after the given number of seconds 
-	AlarmID_t timerOnce(const int H, const int M, const int S, OnTick_t onTickHandler, const char* eventName, int tag);   // As above with HMS arguments
+	AlarmID_t timerOnce(time_t value, OnTick_t onTickHandler, const char* eventName, int tag1 = 0, int tag2 = 0);   // trigger once after the given number of seconds 
+	AlarmID_t timerOnce(const int H, const int M, const int S, OnTick_t onTickHandler, const char* eventName, int tag1 = 0, int tag2 = 0);   // As above with HMS arguments
 
-	AlarmID_t timerRepeat(time_t value, OnTick_t onTickHandler, const char* eventName, int tag); // trigger after the given number of seconds continuously
-	AlarmID_t timerRepeat(const int H, const int M, const int S, OnTick_t onTickHandler, const char* eventName, int tag);   // As above with HMS arguments
+	AlarmID_t timerRepeat(time_t value, OnTick_t onTickHandler, const char* eventName, int tag1 = 0, int tag2 = 0); // trigger after the given number of seconds continuously
+	AlarmID_t timerRepeat(const int H, const int M, const int S, OnTick_t onTickHandler, const char* eventName, int tag1 = 0, int tag2 = 0);   // As above with HMS arguments
 
 	void delay(unsigned long ms);
 
