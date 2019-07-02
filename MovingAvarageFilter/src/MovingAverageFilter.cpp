@@ -33,7 +33,8 @@ int MovingAverageFilter::process(int value)
 		if (readingCount > 0)
 			return sum / readingCount;
 
-		return errorValue;
+		lastValue = errorValue;
+		return lastValue;
 	}
 
 	totalErrors = 0;
@@ -53,7 +54,13 @@ int MovingAverageFilter::process(int value)
 
 	currentIdx = (currentIdx + 1) % dataPointsCount;
 
-	return sum / readingCount;
+	lastValue = sum / readingCount;
+	return lastValue;
+}
+
+int MovingAverageFilter::getCurrentValue()
+{
+	return lastValue;
 }
 
 void MovingAverageFilter::reset()

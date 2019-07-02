@@ -43,16 +43,16 @@ extern "C" {
 
 DallasTemperature::DallasTemperature()
 {
-#if REQUIRESALARMS
-	setAlarmHandler(NO_ALARM_HANDLER);
-#endif
+//#if REQUIRESALARMS
+//	setAlarmHandler(NO_ALARM_HANDLER);
+//#endif
 }
 DallasTemperature::DallasTemperature(OneWire* _oneWire)
 {
 	setOneWire(_oneWire);
-#if REQUIRESALARMS
-	setAlarmHandler(NO_ALARM_HANDLER);
-#endif
+//#if REQUIRESALARMS
+//	setAlarmHandler(NO_ALARM_HANDLER);
+//#endif
 }
 
 bool DallasTemperature::validFamily(const uint8_t* deviceAddress) {
@@ -615,249 +615,249 @@ float DallasTemperature::rawToFahrenheit(int16_t raw) {
 }
 
 #if REQUIRESALARMS
-
-/*
-
- ALARMS:
-
- TH and TL Register Format
-
- BIT 7 BIT 6 BIT 5 BIT 4 BIT 3 BIT 2 BIT 1 BIT 0
- S    2^6   2^5   2^4   2^3   2^2   2^1   2^0
-
- Only bits 11 through 4 of the temperature register are used
- in the TH and TL comparison since TH and TL are 8-bit
- registers. If the measured temperature is lower than or equal
- to TL or higher than or equal to TH, an alarm condition exists
- and an alarm flag is set inside the DS18B20. This flag is
- updated after every temperature measurement; therefore, if the
- alarm condition goes away, the flag will be turned off after
- the next temperature conversion.
-
- */
-
-// sets the high alarm temperature for a device in degrees Celsius
-// accepts a float, but the alarm resolution will ignore anything
-// after a decimal point.  valid range is -55C - 125C
-void DallasTemperature::setHighAlarmTemp(const uint8_t* deviceAddress,
-		int8_t celsius) {
-
-	// return when stored value == new value
-	if (getHighAlarmTemp(deviceAddress) == celsius)
-		return;
-
-	// make sure the alarm temperature is within the device's range
-	if (celsius > 125)
-		celsius = 125;
-	else if (celsius < -55)
-		celsius = -55;
-
-	ScratchPad scratchPad;
-	if (isConnected(deviceAddress, scratchPad)) {
-		scratchPad[HIGH_ALARM_TEMP] = (uint8_t) celsius;
-		writeScratchPad(deviceAddress, scratchPad);
-	}
-
-}
-
-// sets the low alarm temperature for a device in degrees Celsius
-// accepts a float, but the alarm resolution will ignore anything
-// after a decimal point.  valid range is -55C - 125C
-void DallasTemperature::setLowAlarmTemp(const uint8_t* deviceAddress,
-		int8_t celsius) {
-
-	// return when stored value == new value
-	if (getLowAlarmTemp(deviceAddress) == celsius)
-		return;
-
-	// make sure the alarm temperature is within the device's range
-	if (celsius > 125)
-		celsius = 125;
-	else if (celsius < -55)
-		celsius = -55;
-
-	ScratchPad scratchPad;
-	if (isConnected(deviceAddress, scratchPad)) {
-		scratchPad[LOW_ALARM_TEMP] = (uint8_t) celsius;
-		writeScratchPad(deviceAddress, scratchPad);
-	}
-
-}
-
-// returns a int8_t with the current high alarm temperature or
-// DEVICE_DISCONNECTED for an address
-int8_t DallasTemperature::getHighAlarmTemp(const uint8_t* deviceAddress) {
-
-	ScratchPad scratchPad;
-	if (isConnected(deviceAddress, scratchPad))
-		return (int8_t) scratchPad[HIGH_ALARM_TEMP];
-	return DEVICE_DISCONNECTED_C;
-
-}
-
-// returns a int8_t with the current low alarm temperature or
-// DEVICE_DISCONNECTED for an address
-int8_t DallasTemperature::getLowAlarmTemp(const uint8_t* deviceAddress) {
-
-	ScratchPad scratchPad;
-	if (isConnected(deviceAddress, scratchPad))
-		return (int8_t) scratchPad[LOW_ALARM_TEMP];
-	return DEVICE_DISCONNECTED_C;
-
-}
-
-// resets internal variables used for the alarm search
-void DallasTemperature::resetAlarmSearch() {
-
-	alarmSearchJunction = -1;
-	alarmSearchExhausted = 0;
-	for (uint8_t i = 0; i < 7; i++) {
-		alarmSearchAddress[i] = 0;
-	}
-
-}
-
-// This is a modified version of the OneWire::search method.
 //
-// Also added the OneWire search fix documented here:
-// http://www.arduino.cc/cgi-bin/yabb2/YaBB.pl?num=1238032295
+///*
 //
-// Perform an alarm search. If this function returns a '1' then it has
-// enumerated the next device and you may retrieve the ROM from the
-// OneWire::address variable. If there are no devices, no further
-// devices, or something horrible happens in the middle of the
-// enumeration then a 0 is returned.  If a new device is found then
-// its address is copied to newAddr.  Use
-// DallasTemperature::resetAlarmSearch() to start over.
-bool DallasTemperature::alarmSearch(uint8_t* newAddr) {
-
-	uint8_t i;
-	int8_t lastJunction = -1;
-	uint8_t done = 1;
-
-	if (alarmSearchExhausted)
-		return false;
-	if (!_wire->reset())
-		return false;
-
-	// send the alarm search command
-	_wire->write(0xEC, 0);
-
-	for (i = 0; i < 64; i++) {
-
-		uint8_t a = _wire->read_bit();
-		uint8_t nota = _wire->read_bit();
-		uint8_t ibyte = i / 8;
-		uint8_t ibit = 1 << (i & 7);
-
-		// I don't think this should happen, this means nothing responded, but maybe if
-		// something vanishes during the search it will come up.
-		if (a && nota)
-			return false;
-
-		if (!a && !nota) {
-			if (i == alarmSearchJunction) {
-				// this is our time to decide differently, we went zero last time, go one.
-				a = 1;
-				alarmSearchJunction = lastJunction;
-			} else if (i < alarmSearchJunction) {
-
-				// take whatever we took last time, look in address
-				if (alarmSearchAddress[ibyte] & ibit) {
-					a = 1;
-				} else {
-					// Only 0s count as pending junctions, we've already exhausted the 0 side of 1s
-					a = 0;
-					done = 0;
-					lastJunction = i;
-				}
-			} else {
-				// we are blazing new tree, take the 0
-				a = 0;
-				alarmSearchJunction = i;
-				done = 0;
-			}
-			// OneWire search fix
-			// See: http://www.arduino.cc/cgi-bin/yabb2/YaBB.pl?num=1238032295
-		}
-
-		if (a)
-			alarmSearchAddress[ibyte] |= ibit;
-		else
-			alarmSearchAddress[ibyte] &= ~ibit;
-
-		_wire->write_bit(a);
-	}
-
-	if (done)
-		alarmSearchExhausted = 1;
-	for (i = 0; i < 8; i++)
-		newAddr[i] = alarmSearchAddress[i];
-	return true;
-
-}
-
-// returns true if device address might have an alarm condition
-// (only an alarm search can verify this)
-bool DallasTemperature::hasAlarm(const uint8_t* deviceAddress) {
-
-	ScratchPad scratchPad;
-	if (isConnected(deviceAddress, scratchPad)) {
-
-		int8_t temp = calculateTemperature(deviceAddress, scratchPad) >> 7;
-
-		// check low alarm
-		if (temp <= (int8_t) scratchPad[LOW_ALARM_TEMP])
-			return true;
-
-		// check high alarm
-		if (temp >= (int8_t) scratchPad[HIGH_ALARM_TEMP])
-			return true;
-	}
-
-	// no alarm
-	return false;
-
-}
-
-// returns true if any device is reporting an alarm condition on the bus
-bool DallasTemperature::hasAlarm(void) {
-
-	DeviceAddress deviceAddress;
-	resetAlarmSearch();
-	return alarmSearch(deviceAddress);
-}
-
-// runs the alarm handler for all devices returned by alarmSearch()
-// unless there no _AlarmHandler exist.
-void DallasTemperature::processAlarms(void) {
-
-if (!hasAlarmHandler())
-{
-	return;
-}
-
-	resetAlarmSearch();
-	DeviceAddress alarmAddr;
-
-	while (alarmSearch(alarmAddr)) {
-		if (validAddress(alarmAddr)) {
-			_AlarmHandler(alarmAddr);
-		}
-	}
-}
-
-// sets the alarm handler
-void DallasTemperature::setAlarmHandler(const AlarmHandler *handler) {
-	_AlarmHandler = handler;
-}
-
-// checks if AlarmHandler has been set.
-bool DallasTemperature::hasAlarmHandler()
-{
-  return _AlarmHandler != NO_ALARM_HANDLER;
-}
-
+// ALARMS:
+//
+// TH and TL Register Format
+//
+// BIT 7 BIT 6 BIT 5 BIT 4 BIT 3 BIT 2 BIT 1 BIT 0
+// S    2^6   2^5   2^4   2^3   2^2   2^1   2^0
+//
+// Only bits 11 through 4 of the temperature register are used
+// in the TH and TL comparison since TH and TL are 8-bit
+// registers. If the measured temperature is lower than or equal
+// to TL or higher than or equal to TH, an alarm condition exists
+// and an alarm flag is set inside the DS18B20. This flag is
+// updated after every temperature measurement; therefore, if the
+// alarm condition goes away, the flag will be turned off after
+// the next temperature conversion.
+//
+// */
+//
+//// sets the high alarm temperature for a device in degrees Celsius
+//// accepts a float, but the alarm resolution will ignore anything
+//// after a decimal point.  valid range is -55C - 125C
+//void DallasTemperature::setHighAlarmTemp(const uint8_t* deviceAddress,
+//		int8_t celsius) {
+//
+//	// return when stored value == new value
+//	if (getHighAlarmTemp(deviceAddress) == celsius)
+//		return;
+//
+//	// make sure the alarm temperature is within the device's range
+//	if (celsius > 125)
+//		celsius = 125;
+//	else if (celsius < -55)
+//		celsius = -55;
+//
+//	ScratchPad scratchPad;
+//	if (isConnected(deviceAddress, scratchPad)) {
+//		scratchPad[HIGH_ALARM_TEMP] = (uint8_t) celsius;
+//		writeScratchPad(deviceAddress, scratchPad);
+//	}
+//
+//}
+//
+//// sets the low alarm temperature for a device in degrees Celsius
+//// accepts a float, but the alarm resolution will ignore anything
+//// after a decimal point.  valid range is -55C - 125C
+//void DallasTemperature::setLowAlarmTemp(const uint8_t* deviceAddress,
+//		int8_t celsius) {
+//
+//	// return when stored value == new value
+//	if (getLowAlarmTemp(deviceAddress) == celsius)
+//		return;
+//
+//	// make sure the alarm temperature is within the device's range
+//	if (celsius > 125)
+//		celsius = 125;
+//	else if (celsius < -55)
+//		celsius = -55;
+//
+//	ScratchPad scratchPad;
+//	if (isConnected(deviceAddress, scratchPad)) {
+//		scratchPad[LOW_ALARM_TEMP] = (uint8_t) celsius;
+//		writeScratchPad(deviceAddress, scratchPad);
+//	}
+//
+//}
+//
+//// returns a int8_t with the current high alarm temperature or
+//// DEVICE_DISCONNECTED for an address
+//int8_t DallasTemperature::getHighAlarmTemp(const uint8_t* deviceAddress) {
+//
+//	ScratchPad scratchPad;
+//	if (isConnected(deviceAddress, scratchPad))
+//		return (int8_t) scratchPad[HIGH_ALARM_TEMP];
+//	return DEVICE_DISCONNECTED_C;
+//
+//}
+//
+//// returns a int8_t with the current low alarm temperature or
+//// DEVICE_DISCONNECTED for an address
+//int8_t DallasTemperature::getLowAlarmTemp(const uint8_t* deviceAddress) {
+//
+//	ScratchPad scratchPad;
+//	if (isConnected(deviceAddress, scratchPad))
+//		return (int8_t) scratchPad[LOW_ALARM_TEMP];
+//	return DEVICE_DISCONNECTED_C;
+//
+//}
+//
+//// resets internal variables used for the alarm search
+//void DallasTemperature::resetAlarmSearch() {
+//
+//	alarmSearchJunction = -1;
+//	alarmSearchExhausted = 0;
+//	for (uint8_t i = 0; i < 7; i++) {
+//		alarmSearchAddress[i] = 0;
+//	}
+//
+//}
+//
+//// This is a modified version of the OneWire::search method.
+////
+//// Also added the OneWire search fix documented here:
+//// http://www.arduino.cc/cgi-bin/yabb2/YaBB.pl?num=1238032295
+////
+//// Perform an alarm search. If this function returns a '1' then it has
+//// enumerated the next device and you may retrieve the ROM from the
+//// OneWire::address variable. If there are no devices, no further
+//// devices, or something horrible happens in the middle of the
+//// enumeration then a 0 is returned.  If a new device is found then
+//// its address is copied to newAddr.  Use
+//// DallasTemperature::resetAlarmSearch() to start over.
+//bool DallasTemperature::alarmSearch(uint8_t* newAddr) {
+//
+//	uint8_t i;
+//	int8_t lastJunction = -1;
+//	uint8_t done = 1;
+//
+//	if (alarmSearchExhausted)
+//		return false;
+//	if (!_wire->reset())
+//		return false;
+//
+//	// send the alarm search command
+//	_wire->write(0xEC, 0);
+//
+//	for (i = 0; i < 64; i++) {
+//
+//		uint8_t a = _wire->read_bit();
+//		uint8_t nota = _wire->read_bit();
+//		uint8_t ibyte = i / 8;
+//		uint8_t ibit = 1 << (i & 7);
+//
+//		// I don't think this should happen, this means nothing responded, but maybe if
+//		// something vanishes during the search it will come up.
+//		if (a && nota)
+//			return false;
+//
+//		if (!a && !nota) {
+//			if (i == alarmSearchJunction) {
+//				// this is our time to decide differently, we went zero last time, go one.
+//				a = 1;
+//				alarmSearchJunction = lastJunction;
+//			} else if (i < alarmSearchJunction) {
+//
+//				// take whatever we took last time, look in address
+//				if (alarmSearchAddress[ibyte] & ibit) {
+//					a = 1;
+//				} else {
+//					// Only 0s count as pending junctions, we've already exhausted the 0 side of 1s
+//					a = 0;
+//					done = 0;
+//					lastJunction = i;
+//				}
+//			} else {
+//				// we are blazing new tree, take the 0
+//				a = 0;
+//				alarmSearchJunction = i;
+//				done = 0;
+//			}
+//			// OneWire search fix
+//			// See: http://www.arduino.cc/cgi-bin/yabb2/YaBB.pl?num=1238032295
+//		}
+//
+//		if (a)
+//			alarmSearchAddress[ibyte] |= ibit;
+//		else
+//			alarmSearchAddress[ibyte] &= ~ibit;
+//
+//		_wire->write_bit(a);
+//	}
+//
+//	if (done)
+//		alarmSearchExhausted = 1;
+//	for (i = 0; i < 8; i++)
+//		newAddr[i] = alarmSearchAddress[i];
+//	return true;
+//
+//}
+//
+//// returns true if device address might have an alarm condition
+//// (only an alarm search can verify this)
+//bool DallasTemperature::hasAlarm(const uint8_t* deviceAddress) {
+//
+//	ScratchPad scratchPad;
+//	if (isConnected(deviceAddress, scratchPad)) {
+//
+//		int8_t temp = calculateTemperature(deviceAddress, scratchPad) >> 7;
+//
+//		// check low alarm
+//		if (temp <= (int8_t) scratchPad[LOW_ALARM_TEMP])
+//			return true;
+//
+//		// check high alarm
+//		if (temp >= (int8_t) scratchPad[HIGH_ALARM_TEMP])
+//			return true;
+//	}
+//
+//	// no alarm
+//	return false;
+//
+//}
+//
+//// returns true if any device is reporting an alarm condition on the bus
+//bool DallasTemperature::hasAlarm(void) {
+//
+//	DeviceAddress deviceAddress;
+//	resetAlarmSearch();
+//	return alarmSearch(deviceAddress);
+//}
+//
+//// runs the alarm handler for all devices returned by alarmSearch()
+//// unless there no _AlarmHandler exist.
+//void DallasTemperature::processAlarms(void) {
+//
+//if (!hasAlarmHandler())
+//{
+//	return;
+//}
+//
+//	resetAlarmSearch();
+//	DeviceAddress alarmAddr;
+//
+//	while (alarmSearch(alarmAddr)) {
+//		if (validAddress(alarmAddr)) {
+//			_AlarmHandler(alarmAddr);
+//		}
+//	}
+//}
+//
+//// sets the alarm handler
+//void DallasTemperature::setAlarmHandler(const AlarmHandler *handler) {
+//	_AlarmHandler = handler;
+//}
+//
+//// checks if AlarmHandler has been set.
+//bool DallasTemperature::hasAlarmHandler()
+//{
+//  return _AlarmHandler != NO_ALARM_HANDLER;
+//}
+//
 #endif
 
 #if REQUIRESNEW

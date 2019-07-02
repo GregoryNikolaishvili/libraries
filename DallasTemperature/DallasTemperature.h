@@ -235,17 +235,17 @@ private:
 
 	void blockTillConversionComplete(uint8_t);
 
-#if REQUIRESALARMS
-
-	// required for alarmSearch
-	uint8_t alarmSearchAddress[8];
-	int8_t alarmSearchJunction;
-	uint8_t alarmSearchExhausted;
-
-	// the alarm handler function pointer
-	AlarmHandler *_AlarmHandler;
-
-#endif
+//#if REQUIRESALARMS
+//
+//	// required for alarmSearch
+//	uint8_t alarmSearchAddress[8];
+//	int8_t alarmSearchJunction;
+//	uint8_t alarmSearchExhausted;
+//
+//	// the alarm handler function pointer
+//	AlarmHandler *_AlarmHandler;
+//
+//#endif
 
 };
 #endif
