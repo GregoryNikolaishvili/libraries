@@ -3,6 +3,7 @@
 MovingAverageFilter::MovingAverageFilter(unsigned int newDataPointsCount, int newErrorValue)
 {
 	errorValue = newErrorValue;
+	lastValue = errorValue;
 	if (newDataPointsCount < MAX_DATA_POINTS)
 		dataPointsCount = newDataPointsCount;
 	else
@@ -30,8 +31,11 @@ int MovingAverageFilter::process(int value)
 			reset();
 			return errorValue;
 		}
-		if (readingCount > 0)
-			return sum / readingCount;
+		
+		if (lastValue != errorValue)
+		{
+			return lastValue;
+		}
 
 		lastValue = errorValue;
 		return lastValue;
