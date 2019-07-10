@@ -1,3 +1,4 @@
+﻿#include <arduino.h>
 #include "MovingAverageFilter.h"
 
 MovingAverageFilter::MovingAverageFilter(unsigned int newDataPointsCount, int newErrorValue)
@@ -31,7 +32,7 @@ int MovingAverageFilter::process(int value)
 			reset();
 			return errorValue;
 		}
-		
+
 		if (lastValue != errorValue)
 		{
 			return lastValue;
@@ -58,7 +59,13 @@ int MovingAverageFilter::process(int value)
 
 	currentIdx = (currentIdx + 1) % dataPointsCount;
 
-	lastValue = sum / readingCount;
+	int curValueM10 = sum * 10 / readingCount;
+
+	int deltaM10 = curValueM10 - lastValue * 10;
+	if (abs(deltaM10) >= 8) // თუ 0.8-ით მეტია წინაზე, მაშინ შეიცვალოს, ისე დარჩეს ძველი მნიშვნელობა
+	{
+		lastValue = round(curValueM10 / 10);
+	}
 	return lastValue;
 }
 

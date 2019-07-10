@@ -7,6 +7,8 @@
 
 Bounce::Bounce(uint8_t pin, boolean isInverted, unsigned long interval_millis_rise, unsigned long interval_millis_fall)
 {
+	pinMode(pin, INPUT_PULLUP);
+
 	this->pin = pin;
 	this->isInverted = isInverted;
 
