@@ -256,7 +256,7 @@ void NewPing::set_max_distance(unsigned int max_cm_distance) {
 		OCR4C = min((frequency>>2) - 1, 255); // Every count is 4uS, so divide by 4 (bitwise shift right 2) subtract one, then make sure we don't go over 255 limit.
 		TIMSK4 = (1<<TOIE4);                  // Enable Timer4 interrupt.
 	#elif defined (__arm__) && defined (TEENSYDUINO) // Timer for Teensy 3.x
-		itimer.begin(userFunc, frequency);           // Really simple on the Teensy 3.x, calls userFunc every 'frequency' uS.
+			itimer.begin(userFunc, frequency);           // Really simple on the Teensy 3.x, calls userFunc every 'frequency' uS.
 	#elif defined (__arm__) && defined (PARTICLE)    // Timer for Particle devices
 		itimer.begin(userFunc, frequency, uSec);     // Really simple on the Particle, calls userFunc every 'frequency' uS.
 	#else
