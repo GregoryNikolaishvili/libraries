@@ -35,7 +35,6 @@ extern "C"
 #include "utility/uipopt.h"
 #include "utility/uip.h"
 #include "utility/uip_arp.h"
-#include "utility/uip_timer.h"
 }
 
 #define ETH_HDR ((struct uip_eth_hdr *)&uip_buf[0])
@@ -60,6 +59,11 @@ UIPEthernetClass::UIPEthernetClass()
 {
 }
 
+void UIPEthernetClass::init(const uint8_t pin)
+{
+  ENC28J60ControlCS = pin;
+}
+
 #if UIP_UDP
 int
 UIPEthernetClass::begin(const uint8_t* mac)
@@ -71,7 +75,7 @@ UIPEthernetClass::begin(const uint8_t* mac)
   // I leave it there commented for history. It is bring all GCC "new" memory allocation code, making the *.bin almost 40K bigger. I've move it globally.
   _dhcp = &s_dhcp;
   // Initialise the basic info
-  init(mac);
+  netInit(mac);
 
   // Now try to get our config info from a DHCP server
   int ret = _dhcp->beginWithDHCP((uint8_t*)mac);
@@ -123,7 +127,7 @@ UIPEthernetClass::begin(const uint8_t* mac, IPAddress ip, IPAddress dns, IPAddre
   #if ACTLOGLEVEL>=LOG_DEBUG_V3
     LogObject.uart_send_strln(F("UIPEthernetClass::begin(const uint8_t* mac, IPAddress ip, IPAddress dns, IPAddress gateway, IPAddress subnet) DEBUG_V3:Function started"));
   #endif
-  init(mac);
+  netInit(mac);
   configure(ip,dns,gateway,subnet);
 }
 
@@ -153,6 +157,19 @@ int UIPEthernetClass::maintain(){
   }
   return rc;
 #endif
+}
+
+EthernetLinkStatus UIPEthernetClass::linkStatus()
+{
+  if (!Enc28J60.geterevid())
+    return Unknown;
+  return Enc28J60.linkStatus() ? LinkON : LinkOFF;
+}
+
+EthernetHardwareStatus UIPEthernetClass::hardwareStatus() {
+  if (!Enc28J60.geterevid())
+    return EthernetNoHardware;
+  return EthernetENC28J60;
 }
 
 IPAddress UIPEthernetClass::localIP()
@@ -377,11 +394,11 @@ bool UIPEthernetClass::network_send()
       LogObject.uart_send_str(F(", hdrlen: "));
       LogObject.uart_send_decln(uip_hdrlen);
 #endif
-      Enc28J60Network::writePacket(uip_packet,0,uip_buf,uip_hdrlen);
+      Enc28J60Network::writePacket(uip_packet, UIP_SENDBUFFER_OFFSET,uip_buf,uip_hdrlen);
       packetstate &= ~ UIPETHERNET_SENDPACKET;
       goto sendandfree;
     }
-  uip_packet = Enc28J60Network::allocBlock(uip_len);
+  uip_packet = Enc28J60Network::allocBlock(uip_len + UIP_SENDBUFFER_OFFSET + UIP_SENDBUFFER_PADDING);
   if (uip_packet != NOBLOCK)
     {
 #if ACTLOGLEVEL>=LOG_DEBUG
@@ -390,20 +407,20 @@ bool UIPEthernetClass::network_send()
       LogObject.uart_send_str(F(", packet: "));
       LogObject.uart_send_decln(uip_packet);
 #endif
-      Enc28J60Network::writePacket(uip_packet,0,uip_buf,uip_len);
+      Enc28J60Network::writePacket(uip_packet, UIP_SENDBUFFER_OFFSET,uip_buf,uip_len);
       goto sendandfree;
     }
   return false;
 sendandfree:
-  Enc28J60Network::sendPacket(uip_packet);
+  bool success = Enc28J60Network::sendPacket(uip_packet);
   Enc28J60Network::freeBlock(uip_packet);
   uip_packet = NOBLOCK;
-  return true;
+  return success;
 }
 
-void UIPEthernetClass::init(const uint8_t* mac) {
+void UIPEthernetClass::netInit(const uint8_t* mac) {
   #if ACTLOGLEVEL>=LOG_DEBUG_V3
-    LogObject.uart_send_strln(F("UIPEthernetClass::init(const uint8_t* mac) DEBUG_V3:Function started"));
+    LogObject.uart_send_strln(F("UIPEthernetClass::netInit(const uint8_t* mac) DEBUG_V3:Function started"));
   #endif
   periodic_timer = millis() + UIP_PERIODIC_TIMER;
 
@@ -555,7 +572,7 @@ uip_tcpchksum(void)
       sum = Enc28J60Network::chksum(
           sum,
           UIPEthernetClass::uip_packet,
-          UIP_IPH_LEN + UIP_LLH_LEN + upper_layer_memlen,
+          (UIPEthernetClass::packetstate & UIPETHERNET_SENDPACKET ? UIP_IPH_LEN + UIP_LLH_LEN + UIP_SENDBUFFER_OFFSET : UIP_IPH_LEN + UIP_LLH_LEN) + upper_layer_memlen,
           upper_layer_len - upper_layer_memlen
       );
 #if ACTLOGLEVEL>=LOG_DEBUG

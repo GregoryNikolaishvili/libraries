@@ -33,16 +33,18 @@
 #endif
 #include "logging.h"
 
+uint8_t ENC28J60ControlCS = ENC28J60_CONTROL_CS;
+
 #if ENC28J60_USE_SPILIB
    #if defined(ARDUINO)
      #if defined(STM32F2)
        #include <SPI.h>
-     #elif !defined(STM32F3) && !defined(__STM32F4__)
+     #elif (defined(ARDUINO_ARCH_STM32) || !defined(STM32F3)) && !defined(__STM32F4__)
        #include <SPI.h>
        extern SPIClass SPI;
      //#elif defined(ARDUINO_ARCH_AMEBA)
        //SPIClass SPI((void *)(&spi_obj), 11, 12, 13, 10);
-       //SPI _spi(SPI_MOSI,SPI_MISO,SPI_SCK,ENC28J60_CONTROL_CS);
+       //SPI _spi(SPI_MOSI,SPI_MISO,SPI_SCK,ENC28J60ControlCS);
      #else
        #include "HardwareSPI.h"
        extern HardwareSPI SPI(1);
@@ -50,7 +52,7 @@
    #endif
    #if defined(__MBED__)
      SPI _spi(SPI_MOSI,SPI_MISO,SPI_SCK);
-     DigitalOut _cs(ENC28J60_CONTROL_CS);
+     DigitalOut _cs(ENC28J60ControlCS);
      Serial LogObject(SERIAL_TX,SERIAL_RX);
    #endif
 #endif
@@ -72,9 +74,9 @@ extern "C" {
 
 #if defined(ARDUINO)
 	// set CS to 0 = active
-	#define CSACTIVE digitalWrite(ENC28J60_CONTROL_CS, LOW)
+	#define CSACTIVE digitalWrite(ENC28J60ControlCS, LOW)
 	// set CS to 1 = passive
-	#define CSPASSIVE digitalWrite(ENC28J60_CONTROL_CS, HIGH)
+	#define CSPASSIVE digitalWrite(ENC28J60ControlCS, HIGH)
 #endif
 #if defined(__MBED__)
    // set CS to 0 = active
@@ -86,10 +88,6 @@ extern "C" {
 //
 #if defined(ARDUINO_ARCH_AVR)
 #define waitspi() while(!(SPSR&(1<<SPIF)))
-#elif defined(ARDUINO_ARCH_SAM) || defined(ARDUINO_ARCH_SAMD)
-#if ENC28J60_CONTROL_CS==BOARD_SPI_SS0 or ENC28J60_CONTROL_CS==BOARD_SPI_SS1 or ENC28J60_CONTROL_CS==BOARD_SPI_SS2 or ENC28J60_CONTROL_CS==BOARD_SPI_SS3
-#define ENC28J60_USE_SPILIB_EXT 1
-#endif
 #endif
 
 uint16_t Enc28J60Network::nextPacketPtr;
@@ -114,7 +112,7 @@ void Enc28J60Network::init(uint8_t* macaddr)
   // initialize I/O
   // ss as output:
   #if defined(ARDUINO)
-  	  pinMode(ENC28J60_CONTROL_CS, OUTPUT);
+  	  pinMode(ENC28J60ControlCS, OUTPUT);
   #endif
   #if defined(__MBED__)
   	 millis_start(); 
@@ -124,7 +122,7 @@ void Enc28J60Network::init(uint8_t* macaddr)
 
   #if ACTLOGLEVEL>=LOG_DEBUG
     LogObject.uart_send_str(F("ENC28J60::init DEBUG:csPin = "));
-    LogObject.uart_send_decln(ENC28J60_CONTROL_CS);
+    LogObject.uart_send_decln(ENC28J60ControlCS);
     LogObject.uart_send_str(F("ENC28J60::init DEBUG:miso = "));
     LogObject.uart_send_decln(SPI_MISO);
     LogObject.uart_send_str(F("ENC28J60::init DEBUG:mosi = "));
@@ -137,7 +135,7 @@ void Enc28J60Network::init(uint8_t* macaddr)
     LogObject.uart_send_strln(F("ENC28J60::init DEBUG:Use SPI lib SPI.begin()"));
   #endif
   #if defined(ARDUINO)
-    #if defined(__STM32F3__) || defined(STM32F3) || defined(__STM32F4__)
+    #if defined(__STM32F3__) || (!defined(ARDUINO_ARCH_STM32) && defined(STM32F3)) || defined(__STM32F4__)
       SPI.begin(SPI_9MHZ, MSBFIRST, 0);
     #else
       SPI.begin();
@@ -181,7 +179,7 @@ void Enc28J60Network::init(uint8_t* macaddr)
   pinMode(SPI_MOSI, OUTPUT);
   pinMode(SPI_SCK, OUTPUT);
   pinMode(SPI_MISO, INPUT);
-  //Hardware SS must be configured as OUTPUT to enable SPI-master (regardless of which pin is configured as ENC28J60_CONTROL_CS)
+  //Hardware SS must be configured as OUTPUT to enable SPI-master (regardless of which pin is configured as ENC28J60ControlCS)
   pinMode(SS, OUTPUT);
   digitalWrite(SS,HIGH);
 
@@ -346,7 +344,7 @@ Enc28J60Network::receivePacket(void)
   uint8_t epktcnt=readReg(EPKTCNT);
   if ((erevid!=0) && (epktcnt!=0))
     {
-      uint16_t readPtr = nextPacketPtr+6 > RXSTOP_INIT ? nextPacketPtr+6-RXSTOP_INIT+RXSTART_INIT : nextPacketPtr+6;
+      uint16_t readPtr = nextPacketPtr+6 > RXSTOP_INIT ? nextPacketPtr+6-((RXSTOP_INIT + 1)-RXSTART_INIT) : nextPacketPtr+6;
       // Set the read pointer to the start of the received packet
       writeRegPair(ERDPTL, nextPacketPtr);
       // read the next packet pointer
@@ -401,14 +399,13 @@ Enc28J60Network::setERXRDPT(void)
   #if ACTLOGLEVEL>=LOG_DEBUG_V3
     LogObject.uart_send_strln(F("Enc28J60Network::setERXRDPT(void) DEBUG_V3:Function started"));
   #endif
-  uint16_t actnextPacketPtr;
-  nextPacketPtr == RXSTART_INIT ? actnextPacketPtr=RXSTOP_INIT : actnextPacketPtr=nextPacketPtr-1;
-  if (actnextPacketPtr>RXSTOP_INIT) {actnextPacketPtr=RXSTART_INIT;}
-  if ((actnextPacketPtr&1)!=0) {actnextPacketPtr--;}
+  // Make sure the value is odd. See Rev. B1,B4,B5,B7 Silicon Errata issues 14
+  uint16_t actnextPacketPtr = nextPacketPtr == RXSTART_INIT ? RXSTOP_INIT : nextPacketPtr-1;
   #if ACTLOGLEVEL>=LOG_DEBUG
     LogObject.uart_send_str(F("Enc28J60Network::setERXRDPT(void) DEBUG:Set actnextPacketPtr:"));
     LogObject.uart_send_hexln(actnextPacketPtr);
   #endif
+  // datasheet: The ENC28J60 will always write up to, but not including
   writeRegPair(ERXRDPTL, actnextPacketPtr);
 }
 
@@ -421,7 +418,7 @@ Enc28J60Network::blockSize(memhandle handle)
   return ((handle == NOBLOCK) || (erevid==0)) ? 0 : handle == UIP_RECEIVEBUFFERHANDLE ? receivePkt.size : blocks[handle].size;
 }
 
-void
+bool
 Enc28J60Network::sendPacket(memhandle handle)
 {
   #if ACTLOGLEVEL>=LOG_DEBUG_V3
@@ -435,17 +432,14 @@ Enc28J60Network::sendPacket(memhandle handle)
     #if ACTLOGLEVEL>=LOG_ERR
       LogObject.uart_send_strln(F("Enc28J60Network::sendPacket(memhandle handle) ERROR:ENC28j50 Device not found !! Bypass sendPacket function !!"));
     #endif
-    return;
+    return false;
     }
 
   memblock *packet = &blocks[handle];
-  uint16_t start = packet->begin-1;
-  uint16_t end = start + packet->size;
+  uint16_t start = packet->begin; // includes the UIP_SENDBUFFER_OFFSET for control byte
+  uint16_t end = start + packet->size - 1 - UIP_SENDBUFFER_PADDING; // end = start + size - 1 and padding for TSV is no included
 
-  // backup data at control-byte position
-  uint8_t data = readByte(start);
   // write control-byte (if not 0 anyway)
-  if (data)
     writeByte(start, 0);
 
   #if ACTLOGLEVEL>=LOG_DEBUG
@@ -468,57 +462,37 @@ Enc28J60Network::sendPacket(memhandle handle)
   writeRegPair(ETXSTL, start);
   // Set the TXND pointer to correspond to the packet size given
   writeRegPair(ETXNDL, end);
-  // send the contents of the transmit buffer onto the network
  
-  unsigned int retry = TX_COLLISION_RETRY_COUNT;
-  unsigned int timeout = 100;
-  do
+  bool success = false;
+  // See Rev. B7 Silicon Errata issues 12 and 13
+  for (uint8_t retry = 0; retry < TX_COLLISION_RETRY_COUNT; retry++)
     {
-    // seydamir added
-    // Reset the transmit logic problem. See Rev. B7 Silicon Errata issues 12 and 13
+    // Reset the transmit logic problem. Errata 12
     writeOp(ENC28J60_BIT_FIELD_SET, ECON1, ECON1_TXRST);
     writeOp(ENC28J60_BIT_FIELD_CLR, ECON1, ECON1_TXRST);
     writeOp(ENC28J60_BIT_FIELD_CLR, EIR, EIR_TXERIF | EIR_TXIF);
-    // end
  
+    // send the contents of the transmit buffer onto the network
     writeOp(ENC28J60_BIT_FIELD_SET, ECON1, ECON1_TXRTS);
-    // Reset the transmit logic problem. See Rev. B4 Silicon Errata point 12.
-    //if( (readReg(EIR) & EIR_TXERIF) )
-    //  {
-    //    writeOp(ENC28J60_BIT_FIELD_CLR, ECON1, ECON1_TXRTS);
-    //  }
 
-    timeout = 100;
-    while (((readReg(EIR) & (EIR_TXIF | EIR_TXERIF)) == 0) && (timeout>0))
-      {
-      timeout=timeout-1;
-      delay(10);
-      #if defined(ESP8266)
-         wdt_reset();
-      #endif
-      }
-    if (timeout==0)
-      {
-      /* Transmit hardware probably hung, try again later. */
-      /* Shouldn't happen according to errata 12 and 13. */
-      writeOp(ENC28J60_BIT_FIELD_CLR, ECON1, ECON1_TXRTS);	
-      #if ACTLOGLEVEL>=LOG_WARN
-        LogObject.uart_send_strln(F("Enc28J60Network::sendPacket(memhandle handle) WARNING:Collision"));
-      #endif
-      retry=retry-1;
-      }
-    } while ((timeout == 0) && (retry != 0));
-  if (retry == 0)
-    {
+    uint8_t eir;
+    // wait for transmission to complete or fail
+    while (((eir = readReg(EIR)) & (EIR_TXIF | EIR_TXERIF)) == 0);
+    writeOp(ENC28J60_BIT_FIELD_CLR, ECON1, ECON1_TXRTS);
+    success = ((eir & EIR_TXERIF) == 0);
+    if (success)
+      break; // usual exit of the for(retry) loop
+
+    // Errata 13 detection
+    uint8_t tsv4 = readByte(end + 4);
+    if (!(tsv4 & 0b00100000)) // is it "late collision" indicated in bit 29 of TSV?
+      break; // other fail, not the Errata 13 situation
     #if ACTLOGLEVEL>=LOG_ERROR
-      LogObject.uart_send_strln(F("Enc28J60Network::sendPacket(memhandle handle) ERROR:COLLISION !!"));
+      LogObject.uart_send_strln(F("Enc28J60Network::sendPacket(memhandle handle) Errata 13 LATE COLLISION !!"));
     #endif
-    return;
     }
 
-  //restore data on control-byte position
-  if (data)
-    writeByte(start, data);
+  return success;
 }
 
 uint16_t
@@ -528,7 +502,7 @@ Enc28J60Network::setReadPtr(memhandle handle, memaddress position, uint16_t len)
     LogObject.uart_send_strln(F("Enc28J60Network::setReadPtr(memhandle handle, memaddress position, uint16_t len) DEBUG_V3:Function started"));
   #endif
   memblock *packet = handle == UIP_RECEIVEBUFFERHANDLE ? &receivePkt : &blocks[handle];
-  memaddress start = handle == UIP_RECEIVEBUFFERHANDLE && packet->begin + position > RXSTOP_INIT ? packet->begin + position-RXSTOP_INIT+RXSTART_INIT : packet->begin + position;
+  memaddress start = handle == UIP_RECEIVEBUFFERHANDLE && packet->begin + position > RXSTOP_INIT ? packet->begin + position-((RXSTOP_INIT + 1)-RXSTART_INIT) : packet->begin + position;
 
   writeRegPair(ERDPTL, start);
   
@@ -732,11 +706,9 @@ Enc28J60Network::copyPacket(memhandle dest_pkt, memaddress dest_pos, memhandle s
   #endif
   memblock *dest = &blocks[dest_pkt];
   memblock *src = src_pkt == UIP_RECEIVEBUFFERHANDLE ? &receivePkt : &blocks[src_pkt];
-  memaddress start = src_pkt == UIP_RECEIVEBUFFERHANDLE && src->begin + src_pos > RXSTOP_INIT ? src->begin + src_pos-RXSTOP_INIT+RXSTART_INIT : src->begin + src_pos;
+  memaddress start = src_pkt == UIP_RECEIVEBUFFERHANDLE && src->begin + src_pos > RXSTOP_INIT ? src->begin + src_pos-((RXSTOP_INIT + 1)-RXSTART_INIT) : src->begin + src_pos;
   enc28J60_mempool_block_move_callback(dest->begin+dest_pos,start,len);
-  // Move the RX read pointer to the start of the next received packet
-  // This frees the memory we just read out
-  setERXRDPT();
+  // setERXRDPT(); let it to freePacket after all packets are saved
 }
 
 void
@@ -775,7 +747,7 @@ enc28J60_mempool_block_move_callback(memaddress dest, memaddress src, memaddress
       Enc28J60Network::writeRegPair(EDMASTL, src);
       Enc28J60Network::writeRegPair(EDMADSTL, dest);
 
-      if ((src <= RXSTOP_INIT)&& (len > RXSTOP_INIT))len -= (RXSTOP_INIT-RXSTART_INIT);
+      if ((src <= RXSTOP_INIT)&& (len > RXSTOP_INIT))len -= ((RXSTOP_INIT + 1)-RXSTART_INIT);
       Enc28J60Network::writeRegPair(EDMANDL, len);
 
       /*

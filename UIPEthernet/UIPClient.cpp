@@ -320,7 +320,7 @@ UIPClient::read(uint8_t *buf, size_t size)
             {
               remain -= read;
               _eatBlock(&data->packets_in[0]);
-              if (uip_stopped(&uip_conns[data->state & UIP_CLIENT_SOCKETS]) && !(data->state & (UIP_CLIENT_CLOSE | UIP_CLIENT_REMOTECLOSED)))
+              if (uip_stopped(&uip_conns[data->conn_index]) && !(data->state & (UIP_CLIENT_CLOSE | UIP_CLIENT_REMOTECLOSED)))
                 data->state |= UIP_CLIENT_RESTART;
               if (data->packets_in[0] == NOBLOCK)
                 {
@@ -351,7 +351,7 @@ UIPClient::read()
     LogObject.uart_send_strln(F("UIPClient::read() DEBUG_V3:Function started"));
   #endif
   uint8_t c;
-  if (read(&c,1) < 0)
+  if (read(&c,1) <= 0)
     return -1;
   return c;
 }
@@ -384,6 +384,24 @@ UIPClient::flush()
     {
       _flushBlocks(&data->packets_in[0]);
     }
+}
+
+IPAddress
+UIPClient::remoteIP(void)
+{
+  #if ACTLOGLEVEL>=LOG_DEBUG_V3
+    LogObject.uart_send_strln(F("UIPClient::remoteIP(void) DEBUG_V3:Function started"));
+  #endif
+  return data ? ip_addr_uip(uip_conns[data->conn_index].ripaddr) : IPAddress();
+}
+
+uint16_t
+UIPClient::remotePort(void)
+{
+  #if ACTLOGLEVEL>=LOG_DEBUG_V3
+    LogObject.uart_send_strln(F("UIPClient::remotePort(void) DEBUG_V3:Function started"));
+  #endif
+  return data ? ntohs(uip_conns[data->conn_index].rport) : 0;
 }
 
 void
@@ -499,10 +517,10 @@ finish_newdata:
               if (send_len > 0)
                 {
                   UIPEthernetClass::uip_hdrlen = ((uint8_t*)uip_appdata)-uip_buf;
-                  UIPEthernetClass::uip_packet = Enc28J60Network::allocBlock(UIPEthernetClass::uip_hdrlen+send_len);
+                  UIPEthernetClass::uip_packet = Enc28J60Network::allocBlock(UIPEthernetClass::uip_hdrlen+send_len + UIP_SENDBUFFER_OFFSET + UIP_SENDBUFFER_PADDING);
                   if (UIPEthernetClass::uip_packet != NOBLOCK)
                     {
-                      Enc28J60Network::copyPacket(UIPEthernetClass::uip_packet,UIPEthernetClass::uip_hdrlen,u->packets_out[0],0,send_len);
+                      Enc28J60Network::copyPacket(UIPEthernetClass::uip_packet,UIPEthernetClass::uip_hdrlen + UIP_SENDBUFFER_OFFSET,u->packets_out[0],0,send_len);
                       UIPEthernetClass::packetstate |= UIPETHERNET_SENDPACKET;
                     }
                 }
@@ -555,7 +573,8 @@ UIPClient::_allocateData()
       uip_userdata_t* data = &UIPClient::all_data[sock];
       if (!data->state)
         {
-          data->state = sock | UIP_CLIENT_CONNECTED;
+          data->conn_index = uip_conn - uip_conns;
+          data->state = UIP_CLIENT_CONNECTED;
           memset(&data->packets_in[0],0,sizeof(uip_userdata_t)-sizeof(data->state));
           return data;
         }

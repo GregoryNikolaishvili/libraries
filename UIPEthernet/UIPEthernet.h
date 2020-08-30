@@ -26,7 +26,7 @@
 #endif
 #if defined(ARDUINO)
   #include <Arduino.h>
-  #if defined(__STM32F3__) || defined(STM32F3) || defined(__RFduino__)
+  #if defined(__STM32F3__) || (!defined(ARDUINO_ARCH_STM32) && defined(STM32F3)) || defined(__RFduino__)
     #include "mbed/IPAddress.h"
   #else
     #include "IPAddress.h"
@@ -43,7 +43,6 @@
 
 extern "C"
 {
-#include "utility/uip_timer.h"
 #include "utility/uip.h"
 }
 
@@ -67,10 +66,26 @@ extern "C"
 
 #define BUF ((struct uip_tcpip_hdr *)&uip_buf[UIP_LLH_LEN])
 
+enum EthernetLinkStatus {
+  Unknown,
+  LinkON,
+  LinkOFF
+};
+
+enum EthernetHardwareStatus {
+  EthernetNoHardware,
+  EthernetW5100,
+  EthernetW5200,
+  EthernetW5500,
+  EthernetENC28J60 = 10
+};
+
 class UIPEthernetClass
 {
 public:
   UIPEthernetClass();
+
+  void init(const uint8_t pin);
 
   int begin(const uint8_t* mac);
   void begin(const uint8_t* mac, IPAddress ip);
@@ -82,6 +97,9 @@ public:
   // data and issue IP events to the sketch.  It does not return until all IP
   // events have been processed. Renews dhcp-lease if required.
   int maintain();
+
+  EthernetLinkStatus linkStatus();
+  EthernetHardwareStatus hardwareStatus();
 
   IPAddress localIP();
   IPAddress subnetMask();
@@ -100,7 +118,7 @@ private:
   #endif
   static unsigned long periodic_timer;
 
-  static void init(const uint8_t* mac);
+  static void netInit(const uint8_t* mac);
   static void configure(IPAddress ip, IPAddress dns, IPAddress gateway, IPAddress subnet);
 
   static void tick();
