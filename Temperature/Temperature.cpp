@@ -2,6 +2,13 @@
 
 Temperature::Temperature(unsigned int newDataPointsCount) : MovingAverageFilter(newDataPointsCount, T_UNDEFINED)
 {
+	roundingTo1 = true;
+	clear();
+}
+
+Temperature::Temperature(unsigned int newDataPointsCount, bool rounding): MovingAverageFilter(newDataPointsCount, T_UNDEFINED)
+{
+	roundingTo1 = false;
 	clear();
 }
 
@@ -53,6 +60,9 @@ char Temperature::getTrend()
 
 int Temperature::roundT(int T)
 {
+	if (!roundingTo1)
+		return T;
+
 	if (T == T_UNDEFINED)
 		return T;
 
