@@ -16,6 +16,7 @@ private:
 
 public:
 	Temperature(unsigned int newDataPointsCount);
+	Temperature(unsigned int newDataPointsCount, bool rounding);
 
 	void clear();
 
@@ -23,6 +24,7 @@ public:
 	int process(const int value);
 	char getTrend();
 private:
+	bool roundingTo1;
 	int roundT(int T);
 };
 
