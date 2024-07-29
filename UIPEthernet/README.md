@@ -3,6 +3,8 @@ UIPEthernet library for Arduinos (Atmel AVR-s,Atmel SAM3X8E ARM Cortex-M3,STM32F
 
 Original UIPEthernet writed by Norbert Truchsess.
 
+For new projects with enc28j60 EthernetENC library is recommended.
+
 You can find wiring diagram for more board in the hardware directory.
 
 Modifications:
@@ -67,3 +69,39 @@ https://github.com/UIPEthernet/UIPEthernet/blob/master/hardware/NodeMCU_enc28j60
 - compilation with logging enabled fixes for megaavr core (jandrassy)
 - stm32 blue pill wiring picture corrected (jandrassy)
 - New release:2.0.8
+
+- major bug fix - wrong calculation of packet position wrapped on RXSTOP
+- Enc28J60Network: reserve space for TSV. coded by N.Truchsess in ntruchsess/arduino_uip#103
+- solved problem with STM32F3 define in ARDUINO_ARCH_STM32
+- sendPacket: fixed Errata 13 workaround and send result returned
+- UIPClient - fix of the 'overlay' struct uip_userdata_closed_t
+- Enc28J60 object removed. all functions in Enc28J60Network were static
+- uip_timer, uip_clock, clock-arch and uip_debug were not used. removed
+- Ethernet.tick() - polling for active connection was too frequent. in UIP_CLIENT_TIMER mode (it is default) an active connection was polled every tick()
+- UIPClient - added getters remoteIP() and remotePort()
+- UIPClient - implementation of availableForWrite()
+- UIPClient - sending next packet right after ACK boost the performance
+- UIPClient - aborted was not handled
+- UIPClient - _write() looped forever if connection timed out
+- UIPClient - UIP_WRITE_TIMEOUT instead of UIP_ATTEMPTS_ON_WRITE
+- UIPServer - added operator bool() and function end()
+- UIPEthernet - added hardwareStatus() (Ethernet 2.00 compatibility)
+- Ethernet.h file for super libraries including Ethernet.h
+- New release:2.0.9
+
+- make hardwareStatus() and linkStatus() work without Erhernet.begin(mac)
+- UIPServer.end() - stop() all clients
+- fixed library.json for platformio
+- New release:2.0.10
+
+- UIPUdp.cpp beginPacket fix IPAddress check for esp8266 core 3.x.x
+- platformio library.json fixes by Ivan Kravets
+- UIPClient._allocateData - fix data clear
+- UIPClient - fix NULL data field checks
+- New release:2.0.11
+
+- Revert "UIPClient - fix NULL data field checks"
+- UIPClient - process incoming data even when remote closed
+- restart UDP connection also when logging is off (by Karl Õmblus)
+- New release:2.0.12
+ 

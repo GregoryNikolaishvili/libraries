@@ -161,13 +161,15 @@ int UIPEthernetClass::maintain(){
 
 EthernetLinkStatus UIPEthernetClass::linkStatus()
 {
-  if (!Enc28J60.geterevid())
+  Enc28J60Network::initSPI();
+  if (!Enc28J60Network::geterevid())
     return Unknown;
-  return Enc28J60.linkStatus() ? LinkON : LinkOFF;
+  return Enc28J60Network::linkStatus() ? LinkON : LinkOFF;
 }
 
 EthernetHardwareStatus UIPEthernetClass::hardwareStatus() {
-  if (!Enc28J60.geterevid())
+  Enc28J60Network::initSPI();
+  if (!Enc28J60Network::geterevid())
     return EthernetNoHardware;
   return EthernetENC28J60;
 }
@@ -314,13 +316,12 @@ if (Enc28J60Network::geterevid()==0)
         }
       else
         {
-        if (uip_conn!=NULL)
-           {
            if (((uip_userdata_t*)uip_conn->appstate)!=NULL)
               {
               if ((long)( now - ((uip_userdata_t*)uip_conn->appstate)->timer) >= 0)
                  {
                  uip_process(UIP_POLL_REQUEST);
+                 ((uip_userdata_t*)uip_conn->appstate)->timer = millis() + UIP_CLIENT_TIMER;
                  }
               else
                  {
@@ -328,27 +329,7 @@ if (Enc28J60Network::geterevid()==0)
                  }
               }
            else
-              {
-              #if ACTLOGLEVEL>=LOG_DEBUG_V3
-                 LogObject.uart_send_strln(F("UIPEthernetClass::tick() DEBUG_V3:((uip_userdata_t*)uip_conn->appstate) is NULL"));
-              #endif
-              if ((long)( now - ((uip_userdata_t*)uip_conn)->timer) >= 0)
-                 {
-                 uip_process(UIP_POLL_REQUEST);
-                 }
-              else
-                 {
-                 continue;
-                 }
-              }
-           }
-        else
-           {
-           #if ACTLOGLEVEL>=LOG_ERR
-             LogObject.uart_send_strln(F("UIPEthernetClass::tick() ERROR:uip_conn is NULL"));
-           #endif
-           continue;
-           }
+             continue;
         }
 #endif
         // If the above function invocation resulted in data that
@@ -424,6 +405,7 @@ void UIPEthernetClass::netInit(const uint8_t* mac) {
   #endif
   periodic_timer = millis() + UIP_PERIODIC_TIMER;
 
+  Enc28J60Network::initSPI();
   Enc28J60Network::init((uint8_t*)mac);
   uip_seteth_addr(mac);
 
