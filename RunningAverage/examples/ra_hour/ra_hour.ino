@@ -1,29 +1,33 @@
 //
-//    FILE: runningAverageHour.pde
+//    FILE: runningAverageHour.ino
 //  AUTHOR: Rob Tillaart
 //    DATE: 2012-12-30
-//
-// PUPROSE: show working of runningAverage per hour 
+// PURPOSE: show working of runningAverage per hour 
 //          in 2 steps - last minute + last hour
 //          3 or more steps also possible
-//
+//     URL: https://github.com/RobTillaart/RunningAverage
+
 
 #include "RunningAverage.h"
+
 
 RunningAverage raMinute(60);
 RunningAverage raHour(60);
 
 int samples = 0;
 
+
 void setup(void) 
 {
   Serial.begin(115200);
-  Serial.println("Demo RunningAverage lib - average per minute & hour");
-  Serial.print("Version: ");
+  Serial.println();
+  Serial.println(__FILE__);
+  Serial.print("RUNNINGAVERAGE_LIB_VERSION: ");
   Serial.println(RUNNINGAVERAGE_LIB_VERSION);
   raHour.clear();
   raMinute.clear();
 }
+
 
 void loop(void) 
 {
@@ -38,3 +42,7 @@ void loop(void)
   Serial.print("  raHour: ");
   Serial.println(raHour.getAverage(), 4);
 }
+
+
+//  -- END OF FILE --
+

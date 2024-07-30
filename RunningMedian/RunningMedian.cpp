@@ -1,182 +1,373 @@
 //
 //    FILE: RunningMedian.cpp
-//  AUTHOR: Rob dot Tillaart at gmail dot com
-// VERSION: 0.1.13
+//  AUTHOR: Rob Tillaart
+// VERSION: 0.3.9
 // PURPOSE: RunningMedian library for Arduino
-//
-// HISTORY:
-// 0.1.00 - 2011-02-16 initial version
-// 0.1.01 - 2011-02-22 added remarks from CodingBadly
-// 0.1.02 - 2012-03-15 added
-// 0.1.03 - 2013-09-30 added _sorted flag, minor refactor
-// 0.1.04 - 2013-10-17 added getAverage(uint8_t) - kudo's to Sembazuru
-// 0.1.05 - 2013-10-18 fixed bug in sort; removes default constructor; dynamic memory
-// 0.1.06 - 2013-10-19 faster sort, dynamic arrays, replaced sorted float array with indirection array
-// 0.1.07 - 2013-10-19 add correct median if _cnt is even.
-// 0.1.08 - 2013-10-20 add getElement(), add getSottedElement() add predict()
-// 0.1.09 - 2014-11-25 float to double (support ARM)
-// 0.1.10 - 2015-03-07 fix clear
-// 0.1.11 - 2015-03-29 undo 0.1.10 fix clear
-// 0.1.12 - 2015-07-12 refactor constructor + const
-// 0.1.13 - 2015-10-30 fix getElement(n) - kudos to Gdunge
-//
-// Released to the public domain
-//
+
 
 #include "RunningMedian.h"
 
+
 RunningMedian::RunningMedian(const uint8_t size)
 {
-    _size = constrain(size, MEDIAN_MIN_SIZE, MEDIAN_MAX_SIZE);
-
-#ifdef RUNNING_MEDIAN_USE_MALLOC
-    _ar = (double *) malloc(_size * sizeof(double));
-    _p = (uint8_t *) malloc(_size * sizeof(uint8_t));
+  _size = size;
+  if (_size < MEDIAN_MIN_SIZE) _size = MEDIAN_MIN_SIZE;
+#if !RUNNING_MEDIAN_USE_MALLOC
+  if (_size > MEDIAN_MAX_SIZE) _size = MEDIAN_MAX_SIZE;
 #endif
 
-    clear();
+#if RUNNING_MEDIAN_USE_MALLOC
+  _values = (float *) malloc(_size * sizeof(float));
+  _sortIdx  = (uint8_t *) malloc(_size * sizeof(uint8_t));
+#endif
+  clear();
 }
+
 
 RunningMedian::~RunningMedian()
 {
-#ifdef RUNNING_MEDIAN_USE_MALLOC
-    free(_ar);
-    free(_p);
-#endif
+  #if RUNNING_MEDIAN_USE_MALLOC
+  free(_values);
+  free(_sortIdx);
+  #endif
 }
 
-// resets all counters
+
+//  resets all internal counters
 void RunningMedian::clear()
 {
-    _cnt = 0;
-    _idx = 0;
-    _sorted = false;
-    for (uint8_t i = 0; i< _size; i++) _p[i] = i;
+  _count = 0;
+  _index = 0;
+  _sorted = false;
+  for (uint8_t i = 0; i < _size; i++)
+  {
+    _sortIdx[i] = i;
+  }
 }
 
-// adds a new value to the data-set
-// or overwrites the oldest if full.
-void RunningMedian::add(double value)
+
+//  adds a new value to the data-set
+//  or overwrites the oldest if full.
+void RunningMedian::add(float value)
 {
-    _ar[_idx++] = value;
-    if (_idx >= _size) _idx = 0; // wrap around
-    if (_cnt < _size) _cnt++;
-    _sorted = false;
+  _values[_index++] = value;
+  if (_index >= _size) _index = 0; //  wrap around
+  if (_count < _size) _count++;
+  _sorted = false;
 }
 
-double RunningMedian::getMedian()
+
+float RunningMedian::getMedian()
 {
-    if (_cnt > 0)
-    {
-        if (_sorted == false) sort();
-        if (_cnt & 0x01) return _ar[_p[_cnt/2]];
-        else return (_ar[_p[_cnt/2]] + _ar[_p[_cnt/2 - 1]]) / 2;
-    }
-    return NAN;
+  if (_count == 0) return NAN;
+
+  if (_sorted == false) sort();
+
+  if (_count & 0x01)  //  is it odd sized?
+  {
+    return _values[_sortIdx[_count / 2]];
+  }
+  return (_values[_sortIdx[_count / 2]] + _values[_sortIdx[_count / 2 - 1]]) / 2;
 }
 
-#ifdef RUNNING_MEDIAN_ALL
-double RunningMedian::getHighest()
+
+float RunningMedian::getQuantile(float quantile)
 {
-    return getSortedElement(_cnt - 1);
+  if (_count == 0) return NAN;
+
+  if ((quantile < 0) || (quantile > 1)) return NAN;
+
+  if (_sorted == false) sort();
+
+  const float index = (_count - 1) * quantile;
+  const uint8_t lo  = floor(index);
+  const uint8_t hi  = ceil(index);
+  const float qs    = _values[_sortIdx[lo]];
+  const float h     = (index - lo);
+
+  return (1.0 - h) * qs + h * _values[_sortIdx[hi]];
 }
 
-double RunningMedian::getLowest()
+
+float RunningMedian::getAverage()
 {
-    return getSortedElement(0);
+  if (_count == 0) return NAN;
+
+  float sum = 0;
+  for (uint8_t i = 0; i < _count; i++)
+  {
+    sum += _values[i];
+  }
+  return sum / _count;
 }
 
-double RunningMedian::getAverage()
+
+float RunningMedian::getAverage(uint8_t nMedians)
 {
-    if (_cnt > 0)
-    {
-        double sum = 0;
-        for (uint8_t i=0; i< _cnt; i++) sum += _ar[i];
-        return sum / _cnt;
-    }
-    return NAN;
+  if ((_count == 0) || (nMedians == 0)) return NAN;
+
+//  when filling the array for first time
+  if (_count < nMedians) nMedians = _count;
+
+  uint8_t start = ((_count - nMedians) / 2);
+  uint8_t stop = start + nMedians;
+
+  if (_sorted == false) sort();
+
+  float sum = 0;
+  for (uint8_t i = start; i < stop; i++)
+  {
+    sum += _values[_sortIdx[i]];
+  }
+  return sum / nMedians;
 }
 
-double RunningMedian::getAverage(uint8_t nMedians)
+
+//  nMedians is the spread, or the middle N
+//  this version compensated for bias #22
+
+float RunningMedian::getMedianAverage(uint8_t nMedians)
 {
-    if ((_cnt > 0) && (nMedians > 0))
-    {
-        if (_cnt < nMedians) nMedians = _cnt;     // when filling the array for first time
-        uint8_t start = ((_cnt - nMedians)/2);
-        uint8_t stop = start + nMedians;
+  //  handle special cases.
+  if ((_count == 0) || (nMedians == 0)) return NAN;
+  if (_count == 1) return _values[0];
+  if (_count == 2) return (_values[0] + _values[1]) * 0.5;
 
-        if (_sorted == false) sort();
-        double sum = 0;
-        for (uint8_t i = start; i < stop; i++) sum += _ar[_p[i]];
-        return sum / nMedians;
-    }
-    return NAN;
+  //  nMedians can not be larger than current nr of elements.
+  if (_count <= nMedians) return getAverage();
+
+  //  _count is at least 3 from here
+
+  //  Eliminate the bias when the nMedians would fall slightly
+  //  to the left or right of the centre.
+  //  If count and nMedians are not both odd or both even reduce
+  //  the spread by 1 to make them the same.
+  //  If nMedians becomes 0 correct this. to 2.
+  if ((_count & 0x01) != (nMedians & 0x01))
+  {
+     --nMedians;
+     //  nmedians can not become 0
+     if (nMedians == 0) nMedians = 2;
+  }
+
+  uint8_t start = (_count - nMedians) / 2;
+  uint8_t stop = start + nMedians;
+
+  if (_sorted == false) sort();
+
+  float sum = 0;
+  for (uint8_t i = start; i < stop; i++)
+  {
+    sum += _values[_sortIdx[i]];
+  }
+  return sum / nMedians;
 }
 
-double RunningMedian::getElement(const uint8_t n)
+
+float RunningMedian::getElement(const uint8_t n)
 {
-    if ((_cnt > 0) && (n < _cnt))
-    {
-        uint8_t pos = _idx + n;
-        if (pos >= _cnt) // faster than %
-        {
-            pos -= _cnt;
-        }
-        return _ar[pos];
-    }
-    return NAN;
+  if ((_count == 0) || (n >= _count)) return NAN;
+
+  uint8_t pos = _index + n;
+  if (pos >= _count)  //  faster than %
+  {
+    pos -= _count;
+  }
+  return _values[pos];
 }
 
-double RunningMedian::getSortedElement(const uint8_t n)
+
+float RunningMedian::getSortedElement(const uint8_t n)
 {
-    if ((_cnt > 0) && (n < _cnt))
-    {
-        if (_sorted == false) sort();
-        return _ar[_p[n]];
-    }
-    return NAN;
+  if ((_count == 0) || (n >= _count)) return NAN;
+
+  if (_sorted == false) sort();
+  return _values[_sortIdx[n]];
 }
 
-// n can be max <= half the (filled) size
-double RunningMedian::predict(const uint8_t n)
+
+//  n can be max <= half the (filled) size
+float RunningMedian::predict(const uint8_t n)
 {
-    if ((_cnt > 0) && (n < _cnt/2))
-    {
-        double med = getMedian();  // takes care of sorting !
-        if (_cnt & 0x01)
-        {
-            return max(med - _ar[_p[_cnt/2-n]], _ar[_p[_cnt/2+n]] - med);
-        }
-        else
-        {
-            double f1 = (_ar[_p[_cnt/2 - n]] + _ar[_p[_cnt/2 - n - 1]])/2;
-            double f2 = (_ar[_p[_cnt/2 + n]] + _ar[_p[_cnt/2 + n - 1]])/2;
-            return max(med - f1, f2 - med)/2;
-        }
-    }
-    return NAN;
+  uint8_t mid = _count / 2;
+  if ((_count == 0) || (n >= mid)) return NAN;
+
+  float med = getMedian();  //  takes care of sorting !
+  if (_count & 0x01)        //  odd # elements
+  {
+    return max(med - _values[_sortIdx[mid - n]], _values[_sortIdx[mid + n]] - med);
+  }
+  //  even # elements
+  float f1 = (_values[_sortIdx[mid - n]] + _values[_sortIdx[mid - n - 1]]) / 2;
+  float f2 = (_values[_sortIdx[mid + n]] + _values[_sortIdx[mid + n - 1]]) / 2;
+  return max(med - f1, f2 - med) / 2;
 }
-#endif
+
+
+void RunningMedian::setSearchMode(uint8_t searchMode)
+{
+  if (searchMode == 1) _searchMode = 1;
+  else _searchMode = 0;
+}
+
+
+uint8_t RunningMedian::getSearchMode()
+{
+  return _searchMode;
+}
+
+
+////////////////////////////////////////////////////////////
+//
+//  PRIVATE
+//
+
+//  insertion sort - _searchMode = linear or binary.
 
 void RunningMedian::sort()
 {
-    // bubble sort with flag
-    for (uint8_t i = 0; i < _cnt-1; i++)
+  uint16_t lo   = 0;
+  uint16_t hi   = 0;
+  uint16_t mi   = 0;
+  uint16_t temp = 0;
+
+  for (uint16_t i = 1; i < _count; i++)
+  {
+    temp = _sortIdx[i];
+    float f = _values[temp];
+
+    //  handle special case f is smaller than all elements first.
+    //  only one compare needed, improves linear search too.
+    if (f <= _values[_sortIdx[0]])
     {
-        bool flag = true;
-        for (uint8_t j = 1; j < _cnt-i; j++)
-        {
-            if (_ar[_p[j-1]] > _ar[_p[j]])
-            {
-                uint8_t t = _p[j-1];
-                _p[j-1] = _p[j];
-                _p[j] = t;
-                flag = false;
-            }
-        }
-        if (flag) break;
+      hi = 0;
     }
-    _sorted = true;
+    else
+    {
+      if (_searchMode == 0)
+      {
+        hi = i;
+        //  find insertion point with linear search
+        while ((hi > 0) && (f < _values[_sortIdx[hi - 1]]))
+        {
+          hi--;
+        }
+      }
+      else if (_searchMode == 1)
+      {
+        //  find insertion point with binary search
+        lo = 0;
+        hi = i;
+        //  be aware there might be duplicates
+        while (hi - lo > 1)
+        {
+          mi = (lo + hi) / 2;
+          if (f < _values[_sortIdx[mi]])
+          {
+            hi = mi;
+          }
+          else
+          {
+            lo = mi;
+          }
+        }
+      }
+    }
+
+    //  move elements to make space
+    uint16_t k = i;
+    while (k > hi)
+    {
+      _sortIdx[k] = _sortIdx[k - 1];
+      k--;
+    }
+
+    //  insert at right spot.
+    _sortIdx[k] = temp;
+
+  }
+  _sorted = true;
+
+  // //  verify sorted
+  // for (int i = 0; i < _count; i++)
+  // {
+    // if (i%5 == 0) Serial.println();
+    // Serial.print("\t");
+    // Serial.print(_values[_sortIdx[i]]);
+  // }
+  // Serial.println("\n");
 }
 
-// END OF FILE
+
+
+/*
+ split version of pre-0.3.7 sort - bit faster
+
+void RunningMedian::sort()
+{
+  // insertSort
+  for (uint16_t i = 1; i < _count; i++)
+  {
+    uint16_t hi = i;
+    uint16_t temp = _sortIdx[hi];
+    float f = _values[temp];
+    while ((hi > 0) && (f < _values[_sortIdx[hi - 1]]))
+    {
+      hi--;
+    }
+
+    //  move elements to make space
+    uint16_t k = i;
+    while (k > hi)
+    {
+      _sortIdx[k] = _sortIdx[k - 1];
+      k--;
+    }
+
+    //  insert at right spot.
+    _sortIdx[k] = temp;
+  }
+  _sorted = true;
+  //  //  verify sorted
+  // for (int i = 0; i < _count; i++)
+  // {
+    // if (i%5 == 0) Serial.println();
+    // Serial.print("\t");
+    // Serial.print(_values[_sortIdx[i]]);
+  // }
+  // Serial.println("\n");
+}
+*/
+
+
+/*
+//  straightforward insertion sort - PRE-0.3.7
+void RunningMedian::sort()
+{
+  for (uint16_t i = 1; i < _count; i++)
+  {
+    uint16_t z = i;
+    uint16_t temp = _sortIdx[z];
+    while ((z > 0) && (_values[temp] < _values[_sortIdx[z - 1]]))
+    {
+      _sortIdx[z] = _sortIdx[z - 1];
+      z--;
+    }
+    _sortIdx[z] = temp;
+  }
+  _sorted = true;
+
+  //  //  verify sorted
+  // for (int i = 0; i < _count; i++)
+  // {
+    // if (i%5 == 0) Serial.println();
+    // Serial.print("\t");
+    // Serial.print(_values[_sortIdx[i]]);
+  // }
+  // Serial.println("\n");
+}
+*/
+
+
+//  -- END OF FILE --
+

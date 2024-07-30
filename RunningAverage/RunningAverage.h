@@ -1,71 +1,86 @@
+#pragma once
 //
 //    FILE: RunningAverage.h
-//  AUTHOR: Rob dot Tillaart at gmail dot com
-// VERSION: 0.2.12
-//    DATE: 2016-dec-01
-// PURPOSE: RunningAverage library for Arduino
-//     URL: http://arduino.cc/playground/Main/RunningAverage
-// HISTORY: See RunningAverage.cpp
+//  AUTHOR: Rob Tillaart
+// VERSION: 0.4.6
+//    DATE: 2011-01-30
+// PURPOSE: Arduino library to calculate the running average by means of a circular buffer
+//     URL: https://github.com/RobTillaart/RunningAverage
 //
-// Released to the public domain
-//
-// backwards compatibility
-// clr()   clear()
-// add(x)  addValue(x)
-// avg()   getAverage()
+//  The library stores N individual values in a circular buffer,
+//  to calculate the running average.
 
-#ifndef RunningAverage_h
-#define RunningAverage_h
-
-#define RUNNINGAVERAGE_LIB_VERSION "0.2.12"
 
 #include "Arduino.h"
+
+
+#define RUNNINGAVERAGE_LIB_VERSION    (F("0.4.6"))
+
 
 class RunningAverage
 {
 public:
-    RunningAverage(void);
-    explicit RunningAverage(const uint8_t);
-    ~RunningAverage();
+  explicit RunningAverage(const uint16_t size);
+  ~RunningAverage();
 
-    void clear();
-    void addValue(const double);
-    void fillValue(const double, const uint8_t);
+  //  return false if internal buffer not allocated.
+  bool     clear();
+  bool     add(const float value)    { return addValue(value); };
+  bool     addValue(const float value);
+  bool     fillValue(const float value, const uint16_t number);
+  float    getValue(const uint16_t position);
 
-    double getAverage() const;      // does iterate over all elements.
-    double getFastAverage() const;  // reuses previous values.
+  float    getAverage();            //  iterates over all elements.
+  float    getFastAverage() const;  //  reuses previous calculated values.
 
-	// return statistical characteristics of the running average
-    double GetStandardDeviation() const; 
-	double GetStandardError() const;
-	
-	// returns min/max added to the data-set since last clear
-    double getMin() const { return _min; };
-    double getMax() const { return _max; };
+  //  return statistical characteristics of the running average
+  float    getStandardDeviation() const;
+  float    getStandardError() const;
 
-	// returns min/max from the values in the internal buffer
-    double GetMinInBuffer() const;
-    double GetMaxInBuffer() const;
-	
-	// return true if buffer is full
-	bool BufferIsFull() const;
+  //  returns min/max added to the data-set since last clear
+  float    getMin() const { return _min; };
+  float    getMax() const { return _max; };
 
-    double getElement(uint8_t idx) const;
+  //  returns min/max/sum from the values in the internal buffer
+  float    getMinInBuffer() const;
+  float    getMaxInBuffer() const;
+  float    getSum() const { return _sum; };
 
-    uint8_t getSize() const { return _size; }
-    uint8_t getCount() const { return _cnt; }
-	
-	
+  //  return true if buffer is full
+  bool     bufferIsFull() const { return _count == _size; };
+
+  float    getElement(uint16_t index) const;
+
+  uint16_t getSize() const { return _size; }
+  uint16_t getCount() const { return _count; }
+
+  //  use not all elements just a part from 0..partial-1
+  //  (re)setting partial will clear the internal buffer.
+  bool     setPartial(const uint16_t partial = 0);  //  0 ==> use all
+  uint16_t getPartial()   { return _partial; };
+
+
+  //  get some stats from the last count additions.
+  float    getAverageLast(uint16_t count);
+  float    getStandardDeviationLast(uint16_t count);
+  float    getMinInBufferLast(uint16_t count);
+  float    getMaxInBufferLast(uint16_t count);
+
+  //       Experimental 0.4.3
+  float    getAverageSubset(uint16_t start, uint16_t count);
+
 
 protected:
-    uint8_t _size;
-    uint8_t _cnt;
-    uint8_t _idx;
-    double _sum;
-    double * _ar;
-    double _min;
-    double _max;
+  uint16_t _size;
+  uint16_t _count;
+  uint16_t _index;
+  uint16_t _partial;
+  float    _sum;
+  float*   _array;
+  float    _min;
+  float    _max;
 };
 
-#endif
-// END OF FILE
+
+//  -- END OF FILE --
+

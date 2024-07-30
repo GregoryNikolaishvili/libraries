@@ -1,18 +1,15 @@
 //
 //    FILE: RunningMedian.ino
 //  AUTHOR: Rob Tillaart ( kudos to Sembazuru)
-// VERSION: 0.1.01
-// PURPOSE: demo
+// PURPOSE: demo basic usage
 //    DATE: 2013-10-17
-//     URL:
-//
-// Released to the public domain
-//
+//     URL: https://github.com/RobTillaart/RunningMedian
+
 
 #include <RunningMedian.h>
 
 RunningMedian samples = RunningMedian(5);
-RunningMedian samples2 = RunningMedian(9);
+
 
 void setup()
 {
@@ -21,10 +18,12 @@ void setup()
   Serial.println(RUNNING_MEDIAN_VERSION);
 }
 
+
 void loop()
 {
   test1();
 }
+
 
 void test1()
 {
@@ -49,4 +48,7 @@ void test1()
   Serial.println(h);
   delay(100);
 }
+
+
+// -- END OF FILE --
 
